@@ -47,8 +47,11 @@ EventSage turns a short event brief (occasion, date, location, guest count, budg
 - AI-generated plan: budget breakdown, timeline, vendor checklist, theme ideas.
 - Editable budget and checklist (status cycle: todo → booked → paid), persisted to MongoDB.
 - AI re-plan: describe a real-world change, get the budget reallocated.
-- Dashboard with event list, countdown, and budget-used indicator.
+- Dashboard with event list, stat cards, countdown, and animated budget-used progress bars.
 - Public, no-login guest RSVP page per event with a shareable link.
+- **Export plan as PDF** — budget, timeline, checklist, and ideas as a downloadable document, with `jspdf` lazy-loaded so it never bloats the initial page load.
+- **Confetti celebration** on a "yes" RSVP (skips the animation when the visitor has `prefers-reduced-motion` set).
+- **Dark mode** with a toggle in the navbar, persisted per browser, palette re-checked against WCAG AA.
 
 ### Folder Structure
 ```
