@@ -822,6 +822,119 @@ td {
   }
 }
 
+/* Calendar */
+.calendar-card {
+  padding: 1.4rem;
+}
+
+.calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.8rem;
+}
+
+.calendar-header h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--color-primary-dark);
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.calendar-weekdays {
+  margin-bottom: 0.3rem;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  opacity: 0.6;
+}
+
+.calendar-cell {
+  position: relative;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+}
+
+.calendar-cell:not(.empty) {
+  background: var(--color-surface-alt);
+}
+
+.calendar-cell.is-today {
+  background: var(--color-primary);
+  color: var(--color-text-on-primary);
+  font-weight: 700;
+}
+
+.calendar-dot {
+  position: absolute;
+  bottom: 4px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-danger);
+}
+
+.calendar-cell.is-today .calendar-dot {
+  background: var(--color-text-on-primary);
+}
+
+.calendar-event-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  font-size: 0.88rem;
+}
+
+.calendar-event-list a {
+  text-decoration: none;
+}
+
+.calendar-event-list a:hover {
+  text-decoration: underline;
+}
+
+/* Analytics / charts layout */
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.3rem;
+  margin-top: 1.5rem;
+  align-items: start;
+}
+
+.chart-card h3 {
+  margin: 0 0 1rem;
+  font-size: 1.05rem;
+  color: var(--color-primary-dark);
+}
+
+.landing-chart-mock {
+  position: relative;
+}
+
+.landing-chart-mock::before {
+  content: "";
+  position: absolute;
+  inset: -6%;
+  background: radial-gradient(circle, var(--color-secondary) 0%, transparent 70%);
+  opacity: 0.25;
+  z-index: -1;
+  border-radius: 50%;
+}
+
 /* Insights */
 .insight-chip {
   background: var(--color-surface-alt);

@@ -10,6 +10,21 @@ import {
   ShareIcon,
 } from '../components/icons.jsx';
 import Reveal from '../components/Reveal.jsx';
+import DonutChart from '../components/charts/DonutChart.jsx';
+import BarChart from '../components/charts/BarChart.jsx';
+
+const DEMO_OCCASIONS = [
+  { label: 'Wedding', value: 3 },
+  { label: 'Birthday', value: 5 },
+  { label: 'Community', value: 2 },
+];
+
+const DEMO_BUDGET = [
+  { label: 'Venue', value: 45000 },
+  { label: 'Catering', value: 38000 },
+  { label: 'Decor', value: 15000 },
+  { label: 'Photos', value: 12000 },
+];
 
 const FEATURES = [
   {
@@ -163,6 +178,41 @@ export default function Landing() {
               </div>
             </Reveal>
           ))}
+        </div>
+      </section>
+
+      <section className="section alt" id="analytics">
+        <div className="section-head">
+          <span className="eyebrow">See it, don't guess it</span>
+          <h2>Dashboard analytics for every celebration</h2>
+          <p>A live calendar and budget/occasion charts so you always know where your events and money stand.</p>
+        </div>
+        <div className="analytics-grid landing-chart-mock">
+          <Reveal>
+            <div className="card chart-card">
+              <h3>Events by occasion</h3>
+              <DonutChart data={DEMO_OCCASIONS} centerValue={10} centerLabel="events" />
+            </div>
+          </Reveal>
+          <Reveal delay={80}>
+            <div className="card chart-card">
+              <h3>Budget by category</h3>
+              <BarChart data={DEMO_BUDGET} formatValue={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+            </div>
+          </Reveal>
+          <Reveal delay={160}>
+            <div className="card chart-card">
+              <h3>Upcoming events</h3>
+              <p style={{ opacity: 0.8, fontSize: '0.95rem' }}>
+                A built-in calendar on your dashboard marks every event date, so nothing sneaks up on you.
+              </p>
+              <ul style={{ margin: '0.8rem 0 0', paddingLeft: '1.1rem', fontSize: '0.92rem', opacity: 0.85 }}>
+                <li>Month view with a dot on every planned date</li>
+                <li>Click straight through to that event's plan</li>
+                <li>Always shows what's happening this month</li>
+              </ul>
+            </div>
+          </Reveal>
         </div>
       </section>
 

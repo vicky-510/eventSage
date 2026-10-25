@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { daysUntil } from '../utils/dates.js';
+import DonutChart from '../components/charts/DonutChart.jsx';
+import BarChart from '../components/charts/BarChart.jsx';
+import EventCalendar from '../components/EventCalendar.jsx';
 
 export default function Dashboard() {
   const [events, setEvents] = useState([]);
@@ -21,6 +24,24 @@ export default function Dashboard() {
     return d !== null && d >= 0 && d <= 30;
   }).length;
   const totalBudget = events.reduce((sum, ev) => sum + (ev.budgetTotal || 0), 0);
+
+  const occasionData = useMemo(() => {
+    const counts = {};
+    events.forEach((ev) => {
+      const key = ev.occasionType || 'other';
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    return Object.entries(counts).map(([label, value]) => ({ label, value }));
+  }, [events]);
+
+  const budgetBarData = useMemo(
+    () =>
+      events
+        .filter((ev) => ev.budgetTotal)
+        .slice(0, 6)
+        .map((ev) => ({ label: ev.title, value: ev.budgetTotal })),
+    [events]
+  );
 
   return (
     <div className="container">
@@ -53,6 +74,22 @@ export default function Dashboard() {
 
       {loading && <p>Loading…</p>}
       {error && <p className="error-text">{error}</p>}
+
+      {!loading && events.length > 0 && (
+        <div className="analytics-grid">
+          <div className="card chart-card">
+            <h3>Events by occasion</h3>
+            <DonutChart data={occasionData} centerValue={events.length} centerLabel="events" />
+          </div>
+          {budgetBarData.length > 0 && (
+            <div className="card chart-card">
+              <h3>Budget by event</h3>
+              <BarChart data={budgetBarData} formatValue={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+            </div>
+          )}
+          <EventCalendar events={events} />
+        </div>
+      )}
 
       {!loading && events.length === 0 && (
         <div className="card" style={{ marginTop: '1.5rem' }}>
