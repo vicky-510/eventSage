@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext.jsx';
 import Navbar from './components/Navbar.jsx';
+import Footer from './components/Footer.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import Landing from './pages/Landing.jsx';
 import Login from './pages/Login.jsx';
@@ -49,6 +50,7 @@ export default function App() {
           <Route path="/e/:publicId" element={<PublicRsvp />} />
         </Routes>
       </main>
+      <Footer />
     </AuthProvider>
   );
 }

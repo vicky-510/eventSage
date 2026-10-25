@@ -24,8 +24,11 @@ export default function Dashboard() {
 
   return (
     <div className="container">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-        <h1 style={{ margin: 0 }}>Your events</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '0.75rem' }}>
+        <div>
+          <span className="eyebrow">Dashboard</span>
+          <h1 style={{ margin: '0.5rem 0 0' }}>Your events</h1>
+        </div>
         <Link className="btn" to="/events/new">
           + New event
         </Link>
