@@ -187,20 +187,12 @@ router.post(
   }
 );
 
-function clientOrigin() {
-  return (process.env.CLIENT_ORIGIN || '').split(',')[0] || 'http://localhost:5173';
-}
-
-function inviteUrlFor(event, guest) {
-  return guest.inviteToken ? `${clientOrigin()}/e/${event.publicId}?g=${guest.inviteToken}` : null;
-}
-
 router.get('/:id/guests', async (req, res, next) => {
   try {
     const event = await findOwnedEvent(req, res);
     if (!event) return;
     const guests = await Guest.find({ eventId: event._id }).sort({ respondedAt: -1, createdAt: -1 });
-    res.json(guests.map((g) => ({ ...g.toObject(), inviteUrl: inviteUrlFor(event, g) })));
+    res.json(guests);
   } catch (err) {
     next(err);
   }
@@ -224,7 +216,7 @@ router.post(
         status: 'invited',
       });
 
-      res.status(201).json({ ...guest.toObject(), inviteUrl: inviteUrlFor(event, guest) });
+      res.status(201).json(guest);
     } catch (err) {
       next(err);
     }

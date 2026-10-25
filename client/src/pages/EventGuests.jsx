@@ -53,18 +53,24 @@ export default function EventGuests() {
     }
   }
 
+  function inviteUrlFor(guest) {
+    if (!event || !guest.inviteToken) return null;
+    return `${window.location.origin}/e/${event.publicId}?g=${guest.inviteToken}`;
+  }
+
   async function copyLink(guest) {
+    const url = inviteUrlFor(guest);
     try {
-      await navigator.clipboard.writeText(guest.inviteUrl);
+      await navigator.clipboard.writeText(url);
       setCopiedId(guest._id);
       setTimeout(() => setCopiedId((prev) => (prev === guest._id ? null : prev)), 2000);
     } catch {
-      window.prompt('Copy this link:', guest.inviteUrl);
+      window.prompt('Copy this link:', url);
     }
   }
 
   function whatsappShareUrl(guest) {
-    const text = `You're invited to ${event?.title || 'our event'}! RSVP here: ${guest.inviteUrl}`;
+    const text = `You're invited to ${event?.title || 'our event'}! RSVP here: ${inviteUrlFor(guest)}`;
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   }
 
@@ -148,7 +154,7 @@ export default function EventGuests() {
                     )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    {g.inviteUrl && g.status === 'invited' && (
+                    {g.inviteToken && g.status === 'invited' && (
                       <>
                         <button className="btn secondary guest-share-btn" type="button" onClick={() => copyLink(g)}>
                           {copiedId === g._id ? 'Copied!' : 'Copy link'}
