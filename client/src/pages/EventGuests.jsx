@@ -312,62 +312,74 @@ export default function EventGuests() {
           {sectionGuests.length === 0 ? (
             <p className="hint-text">{q ? 'No matches.' : section.emptyText}</p>
           ) : (
-            <ul className="guest-list">
-              {sectionGuests.map((g) => (
-                <li key={g._id} className={`guest-row guest-${g.status}`}>
-                  <div className="guest-row-main">
-                    {g.status === 'invited' && (
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(g._id)}
-                        onChange={() => toggleSelected(g._id)}
-                        aria-label={`Select ${g.name}`}
-                        className="guest-row-checkbox"
-                      />
-                    )}
-                    <div className="guest-row-info">
-                      <div className="guest-row-name">
-                        <strong>{g.name}</strong>
-                        {g.phone && <span className="guest-phone"> ({g.phone})</span>}
-                      </div>
-                      {g.email && <div className="guest-email">{g.email}</div>}
-                      {g.dietaryNotes && <div className="guest-notes">Dietary notes: {g.dietaryNotes}</div>}
-                      {g.respondedAt && (
-                        <div className="guest-notes">Responded {new Date(g.respondedAt).toLocaleString()}</div>
+            <div className="guest-table-wrap">
+              <table className="guest-table">
+                <thead>
+                  <tr>
+                    {isInvitedSection && <th className="guest-table-check"></th>}
+                    <th>Guest</th>
+                    <th className="guest-table-actions-head">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sectionGuests.map((g) => (
+                    <tr key={g._id} className={`guest-${g.status}`}>
+                      {isInvitedSection && (
+                        <td className="guest-table-check">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(g._id)}
+                            onChange={() => toggleSelected(g._id)}
+                            aria-label={`Select ${g.name}`}
+                          />
+                        </td>
                       )}
-                    </div>
-                  </div>
-                  <div className="guest-row-actions">
-                    {g.inviteToken && g.status === 'invited' && (
-                      <>
-                        <button className="btn secondary guest-share-btn" type="button" onClick={() => copyLink(g)}>
-                          {copiedId === g._id ? 'Copied!' : 'Copy link'}
-                        </button>
-                        <a
-                          className="btn secondary guest-share-btn"
-                          href={whatsappShareUrl(g)}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          WhatsApp
-                        </a>
-                      </>
-                    )}
-                    <button
-                      className="btn danger guest-share-btn"
-                      type="button"
-                      onClick={() => handleDeleteGuest(g)}
-                      aria-label={`Remove ${g.name}`}
-                    >
-                      Remove
-                    </button>
-                    <span className={`badge guest-status-badge guest-status-${g.status}`}>
-                      {g.status === 'accepted' ? 'Attending' : g.status === 'declined' ? "Can't attend" : 'Invited'}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
+                      <td>
+                        <div className="guest-row-name">
+                          <strong>{g.name}</strong>
+                          {g.phone && <span className="guest-phone"> ({g.phone})</span>}
+                        </div>
+                        {g.email && <div className="guest-email">{g.email}</div>}
+                        {g.dietaryNotes && <div className="guest-notes">Dietary notes: {g.dietaryNotes}</div>}
+                        {g.respondedAt && (
+                          <div className="guest-notes">Responded {new Date(g.respondedAt).toLocaleString()}</div>
+                        )}
+                      </td>
+                      <td>
+                        <div className="guest-row-actions">
+                          {g.inviteToken && g.status === 'invited' && (
+                            <>
+                              <button className="btn secondary guest-share-btn" type="button" onClick={() => copyLink(g)}>
+                                {copiedId === g._id ? 'Copied!' : 'Copy link'}
+                              </button>
+                              <a
+                                className="btn secondary guest-share-btn"
+                                href={whatsappShareUrl(g)}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                WhatsApp
+                              </a>
+                            </>
+                          )}
+                          <button
+                            className="btn danger guest-share-btn"
+                            type="button"
+                            onClick={() => handleDeleteGuest(g)}
+                            aria-label={`Remove ${g.name}`}
+                          >
+                            Remove
+                          </button>
+                          <span className={`badge guest-status-badge guest-status-${g.status}`}>
+                            {g.status === 'accepted' ? 'Attending' : g.status === 'declined' ? "Can't attend" : 'Invited'}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
         );

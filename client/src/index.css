@@ -983,41 +983,49 @@ td {
   cursor: pointer;
 }
 
-.guest-list {
-  list-style: none;
-  padding: 0;
-  margin: 1rem 0 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.guest-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.6rem 1rem;
-  background: var(--color-surface-alt);
+.guest-table-wrap {
+  margin-top: 1rem;
+  overflow-x: auto;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
+}
+
+.guest-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--color-surface-alt);
+}
+
+.guest-table th,
+.guest-table td {
   padding: 0.7rem 0.9rem;
+  text-align: left;
+  vertical-align: middle;
 }
 
-.guest-row-main {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  flex: 1 1 220px;
-  min-width: 0;
+.guest-table thead th {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text);
+  opacity: 0.6;
+  border-bottom: 1px solid var(--color-border);
 }
 
-.guest-row-checkbox {
-  flex: 0 0 auto;
+.guest-table-check {
+  width: 2.2rem;
 }
 
-.guest-row-info {
-  min-width: 0;
+.guest-table-actions-head {
+  text-align: right;
+}
+
+.guest-table tbody tr:not(:last-child) {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.guest-table tbody td:last-child {
+  text-align: right;
 }
 
 .guest-row-name {
@@ -1033,35 +1041,9 @@ td {
 .guest-row-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.5rem;
-  flex-wrap: nowrap;
-  flex: 0 0 auto;
-  margin-left: auto;
-}
-
-@media (max-width: 640px) {
-  .guest-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .guest-row-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    width: 100%;
-    margin-left: 0;
-  }
-
-  .guest-row-actions > * {
-    flex: none;
-    text-align: center;
-    justify-content: center;
-  }
-
-  .guest-status-badge {
-    grid-column: 1 / -1;
-    justify-self: center;
-  }
+  flex-wrap: wrap;
 }
 
 .guest-email {
