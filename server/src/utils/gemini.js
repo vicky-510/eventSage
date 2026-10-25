@@ -1,9 +1,19 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const PRIMARY_MODEL = process.env.GEMINI_PRIMARY_MODEL || 'gemini-3.1-pro';
-const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || 'gemini-3.5-flash';
+const DEFAULT_MODEL_CHAIN = ['gemini-3.1-pro', 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
 
-function extractJson(text) {
+export function getModelChain() {
+  if (process.env.GEMINI_MODEL_CHAIN) {
+    return process.env.GEMINI_MODEL_CHAIN.split(',').map((m) => m.trim()).filter(Boolean);
+  }
+  // Back-compat with the older two-var config, if someone still sets those instead.
+  if (process.env.GEMINI_PRIMARY_MODEL || process.env.GEMINI_FALLBACK_MODEL) {
+    return [process.env.GEMINI_PRIMARY_MODEL, process.env.GEMINI_FALLBACK_MODEL].filter(Boolean);
+  }
+  return DEFAULT_MODEL_CHAIN;
+}
+
+export function extractJson(text) {
   const fenced = text.match(/```json\s*([\s\S]*?)```/i) || text.match(/```\s*([\s\S]*?)```/);
   const raw = fenced ? fenced[1] : text;
   return JSON.parse(raw.trim());
@@ -18,22 +28,27 @@ async function callModel(modelName, prompt) {
 }
 
 /**
- * Tries the primary Gemini model; on any failure (error, timeout, malformed
- * JSON) falls back to the secondary model so a single model outage/deprecation
- * doesn't take down plan generation.
+ * Walks a chain of Gemini models in order (configurable via GEMINI_MODEL_CHAIN,
+ * a comma-separated list) so a single model's outage, deprecation, or quota
+ * limit doesn't take down plan generation. Stops at the first model that
+ * returns a response that parses as JSON.
  */
 export async function generateStructuredPlan(prompt) {
-  try {
-    return { data: await callModel(PRIMARY_MODEL, prompt), modelUsed: PRIMARY_MODEL };
-  } catch (primaryErr) {
+  const chain = getModelChain();
+  const errors = [];
+
+  for (const modelName of chain) {
     try {
-      return { data: await callModel(FALLBACK_MODEL, prompt), modelUsed: FALLBACK_MODEL };
-    } catch (fallbackErr) {
-      const err = new Error('AI plan generation failed on both primary and fallback models');
-      err.status = 502;
-      err.publicMessage = 'Could not generate plan right now, please try again shortly';
-      err.cause = { primaryErr, fallbackErr };
-      throw err;
+      const data = await callModel(modelName, prompt);
+      return { data, modelUsed: modelName };
+    } catch (err) {
+      errors.push({ model: modelName, message: err.message });
     }
   }
+
+  const err = new Error(`AI plan generation failed on all models: ${chain.join(', ')}`);
+  err.status = 502;
+  err.publicMessage = 'Could not generate plan right now, please try again shortly';
+  err.cause = errors;
+  throw err;
 }

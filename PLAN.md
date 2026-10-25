@@ -26,7 +26,7 @@
 | Backend | Node.js + Express |
 | Backend hosting | Vercel (serverless functions) |
 | Database | MongoDB Atlas (Mongoose ODM) |
-| AI | Gemini API (`@google/generative-ai`) — primary model `gemini-3.1-pro` (preview), auto-fallback to `gemini-3.5-flash` (stable) on error/unavailability — aligns with "Collaborating with Google for Developers". Verify exact model IDs in Google AI Studio before building, since 2.5-series models are being shut down (Oct 16, 2026) and 3.x naming may still shift. |
+| AI | Gemini API (`@google/generative-ai`) — model fallback chain: `gemini-3.1-pro` (preview) → `gemini-3.5-flash` (stable) → `gemini-3.1-flash-lite` (stable), tried in order until one succeeds — aligns with "Collaborating with Google for Developers". Verify exact model IDs in Google AI Studio before building, since 2.5-series models are being shut down (Oct 16, 2026) and 3.x naming may still shift. |
 | Auth | Custom email/password, JWT + httpOnly refresh cookie |
 | Testing | Jest + Supertest + mongodb-memory-server (backend API tests) |
 
@@ -48,7 +48,7 @@
 ## 5. Core Features (scope for submission)
 1. **Auth**: signup, login, logout, protected routes (JWT middleware).
 2. **Event creation**: form captures occasion, date, location, guest count, budget, vibe/notes → saved to MongoDB.
-3. **AI Plan Generation** (`POST /ai/generate-plan`): single well-engineered Gemini prompt, given the event brief, returns strict JSON. Model call tries `gemini-3.1-pro` first; on error, timeout, or quota/availability failure it automatically retries the same prompt against `gemini-3.5-flash` (configurable via `GEMINI_PRIMARY_MODEL` / `GEMINI_FALLBACK_MODEL` env vars so model names can be bumped without a code change as Google ships newer versions). Response shape:
+3. **AI Plan Generation** (`POST /ai/generate-plan`): single well-engineered Gemini prompt, given the event brief, returns strict JSON. The model call walks a configurable chain (`GEMINI_MODEL_CHAIN`, comma-separated, default `gemini-3.1-pro,gemini-3.5-flash,gemini-3.1-flash-lite`), trying each model in order until one returns a response that parses as valid JSON, so a single model's outage, deprecation, or quota limit doesn't take down plan generation. Response shape:
    - `budget`: category → amount breakdown
    - `timeline`: ordered list of {time/day, activity}
    - `checklist`: vendor/task list with suggested due dates (counted back from event date)
@@ -112,7 +112,7 @@ Contrast of text/background pairs to be checked against WCAG AA during the acces
   - Signup: success, duplicate email rejected, weak password rejected.
   - Login: success issues tokens, wrong password rejected, rate limit triggers after N attempts.
   - Events: protected routes reject requests without a valid access token.
-  - AI route: mocked Gemini response is validated/shaped correctly before save; a forced primary-model failure confirms the fallback model path is used.
+  - AI route: mocked Gemini response is validated/shaped correctly before save; forced failures on earlier models in the chain confirm it falls through to the next one.
 - Keep test suite small and fast — a handful of high-value cases, not exhaustive coverage.
 
 ## 10. Repo Structure
@@ -134,7 +134,7 @@ eventPlanner/
 ## 11. Build Order (milestones)
 1. Backend skeleton + MongoDB connection + User model + auth routes (signup/login/refresh/logout) + tests.
 2. Event model + CRUD routes (protected) + tests.
-3. Gemini integration (`/ai/generate-plan`, `/ai/replan`) with strict JSON-schema prompting + validation, primary/fallback model call wrapper (`utils/gemini.js`), and env-configurable model names.
+3. Gemini integration (`/ai/generate-plan`, `/ai/replan`) with strict JSON-schema prompting + validation, a multi-model fallback chain wrapper (`utils/gemini.js`), and env-configurable model list.
 4. Frontend: auth pages, dashboard, event intake form, wired to backend.
 5. Frontend: plan view (editable budget/timeline/checklist), re-plan UI.
 6. Public guest RSVP page.
