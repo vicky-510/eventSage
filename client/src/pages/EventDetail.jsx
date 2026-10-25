@@ -14,7 +14,6 @@ export default function EventDetail() {
   const [replanText, setReplanText] = useState('');
   const [replanning, setReplanning] = useState(false);
   const [error, setError] = useState('');
-  const [modelUsed, setModelUsed] = useState('');
 
   useEffect(() => {
     api
@@ -30,7 +29,6 @@ export default function EventDetail() {
     try {
       const res = await api.generatePlan(id);
       setEvent(res.event);
-      setModelUsed(res.modelUsed);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -46,7 +44,6 @@ export default function EventDetail() {
     try {
       const res = await api.replan(id, replanText);
       setEvent(res.event);
-      setModelUsed(res.modelUsed);
       setReplanText('');
     } catch (err) {
       setError(err.message);
@@ -96,7 +93,6 @@ export default function EventDetail() {
             Export PDF
           </button>
         )}
-        {modelUsed && <span className="badge">generated with {modelUsed}</span>}
       </div>
 
       {error && (

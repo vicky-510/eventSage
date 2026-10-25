@@ -50,6 +50,26 @@ export function RefreshIcon(props) {
   );
 }
 
+export function BotIcon(props) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
+      <rect x="4" y="9" width="16" height="11" rx="3" />
+      <path d="M12 9V5M9 5h6" />
+      <circle cx="9" cy="14.5" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="14.5" r="1.2" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+export function SendIcon(props) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
+      <path d="M22 2 11 13" />
+      <path d="M22 2 15 22l-4-9-9-4 20-7z" />
+    </svg>
+  );
+}
+
 export function CalendarIcon(props) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>

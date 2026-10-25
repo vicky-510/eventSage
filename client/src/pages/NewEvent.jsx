@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client.js';
+import { BotIcon, SendIcon, SparkleIcon } from '../components/icons.jsx';
 
 const GREETING = "Hi! Tell me what you're celebrating — a wedding, birthday, or community event — and I'll help you plan it.";
 
@@ -136,34 +137,49 @@ export default function NewEvent() {
   }
 
   return (
-    <div className="container" style={{ maxWidth: 560 }}>
-      <div className="card">
-        <h1>Let's plan your event</h1>
+    <div className="container" style={{ maxWidth: 600 }}>
+      <div className="card chat-card">
+        <div className="chat-header">
+          <span className="chat-avatar">
+            <SparkleIcon aria-hidden="true" width="17" height="17" />
+          </span>
+          <div>
+            <p className="chat-title">Plan with EventSage</p>
+            <p className="chat-subtitle">
+              <span className="chat-status-dot" aria-hidden="true" /> Online now
+            </p>
+          </div>
+        </div>
         <div
           ref={scrollRef}
           role="log"
           aria-live="polite"
           aria-label="Planning conversation"
-          style={{ maxHeight: 360, overflowY: 'auto', margin: '1rem 0', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}
+          className="chat-log"
+          style={{ maxHeight: 400 }}
         >
           {messages.map((m, i) => (
-            <div
-              key={i}
-              style={{
-                alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-                background: m.role === 'user' ? 'var(--color-primary)' : 'var(--color-surface-alt)',
-                color: m.role === 'user' ? 'var(--color-text-on-primary)' : 'var(--color-text)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '0.6rem 0.9rem',
-                maxWidth: '85%',
-              }}
-            >
-              {m.content}
+            <div key={i} className={`chat-row from-${m.role}`}>
+              <span className="chat-avatar" aria-hidden="true">
+                {m.role === 'assistant' ? <BotIcon width="16" height="16" /> : 'You'}
+              </span>
+              <div className="chat-bubble">{m.content}</div>
             </div>
           ))}
-          {thinking && <div style={{ opacity: 0.6, fontStyle: 'italic' }}>EventSage is thinking…</div>}
+          {thinking && (
+            <div className="chat-row from-assistant">
+              <span className="chat-avatar" aria-hidden="true">
+                <BotIcon width="16" height="16" />
+              </span>
+              <div className="chat-bubble typing-dots" aria-label="EventSage is typing">
+                <span />
+                <span />
+                <span />
+              </div>
+            </div>
+          )}
         </div>
-        <form onSubmit={sendMessage} style={{ display: 'flex', gap: '0.5rem' }}>
+        <form onSubmit={sendMessage} className="chat-composer">
           <label htmlFor="intake-input" className="visually-hidden">
             Your message
           </label>
@@ -174,16 +190,16 @@ export default function NewEvent() {
             onChange={(e) => setInput(e.target.value)}
             disabled={thinking}
           />
-          <button className="btn" type="submit" disabled={thinking || !input.trim()}>
-            Send
+          <button className="btn chat-send-btn" type="submit" disabled={thinking || !input.trim()} aria-label="Send message">
+            <SendIcon aria-hidden="true" />
           </button>
         </form>
-        {error && (
-          <p className="error-text" role="alert" style={{ marginTop: '0.75rem' }}>
-            {error}
-          </p>
-        )}
       </div>
+      {error && (
+        <p className="error-text" role="alert" style={{ marginTop: '0.75rem' }}>
+          {error}
+        </p>
+      )}
     </div>
   );
 }
