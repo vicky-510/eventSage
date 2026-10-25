@@ -398,9 +398,11 @@ export default function EventGuests() {
                           >
                             Remove
                           </button>
-                          <span className={`badge guest-status-badge guest-status-${g.status}`}>
-                            {STATUS_LABEL[g.status]}
-                          </span>
+                          {g.status !== 'invited' && (
+                            <span className={`badge guest-status-badge guest-status-${g.status}`}>
+                              {STATUS_LABEL[g.status]}
+                            </span>
+                          )}
                         </div>
                       </td>
                     </tr>
