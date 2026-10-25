@@ -142,6 +142,7 @@ router.delete('/:id', async (req, res, next) => {
   try {
     const event = await findOwnedEvent(req, res);
     if (!event) return;
+    await Guest.deleteMany({ eventId: event._id });
     await event.deleteOne();
     res.json({ ok: true });
   } catch (err) {
@@ -263,6 +264,18 @@ router.post(
     }
   }
 );
+
+router.delete('/:id/guests/:guestId', async (req, res, next) => {
+  try {
+    const event = await findOwnedEvent(req, res);
+    if (!event) return;
+    const guest = await Guest.findOneAndDelete({ _id: req.params.guestId, eventId: event._id });
+    if (!guest) return res.status(404).json({ error: 'Guest not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
 
 router.post(
   '/:id/chat',

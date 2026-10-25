@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { exportPlanPdf } from '../utils/exportPlanPdf.js';
 import AssistantChat from '../components/AssistantChat.jsx';
@@ -8,6 +8,7 @@ const SEVERITY_LABEL = { critical: 'Critical', warning: 'Warning', info: 'Note' 
 
 export default function EventDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -16,6 +17,7 @@ export default function EventDetail() {
   const [error, setError] = useState('');
   const [guests, setGuests] = useState([]);
   const [justResponded, setJustResponded] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     api
@@ -88,6 +90,22 @@ export default function EventDetail() {
     setEvent(updated);
   }
 
+  async function handleDeleteEvent() {
+    const confirmed = window.confirm(
+      `Cancel "${event.title}"? This permanently deletes the event and its guest list — this can't be undone.`
+    );
+    if (!confirmed) return;
+    setDeleting(true);
+    setError('');
+    try {
+      await api.deleteEvent(id);
+      navigate('/dashboard');
+    } catch (err) {
+      setError(err.message);
+      setDeleting(false);
+    }
+  }
+
   if (loading) return <div className="container">Loading…</div>;
   if (error && !event) return <div className="container error-text">{error}</div>;
   if (!event) return null;
@@ -118,6 +136,9 @@ export default function EventDetail() {
             Export PDF
           </button>
         )}
+        <button className="btn danger" style={{ marginLeft: 'auto' }} onClick={handleDeleteEvent} disabled={deleting}>
+          {deleting ? 'Cancelling…' : 'Cancel event'}
+        </button>
       </div>
 
       {error && (

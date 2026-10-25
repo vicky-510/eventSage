@@ -92,6 +92,7 @@ export const api = {
     apiRequest(`/events/${id}/guests/link`, { method: 'POST', body: JSON.stringify({ name, phone }) }),
   createGuestLinksBulk: (id, guests) =>
     apiRequest(`/events/${id}/guests/bulk`, { method: 'POST', body: JSON.stringify({ guests }) }),
+  deleteGuest: (id, guestId) => apiRequest(`/events/${id}/guests/${guestId}`, { method: 'DELETE' }),
 
   getPublicEvent: (publicId, inviteToken) =>
     apiRequest(`/public/events/${publicId}${inviteToken ? `?g=${encodeURIComponent(inviteToken)}` : ''}`),

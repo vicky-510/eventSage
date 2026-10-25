@@ -97,6 +97,23 @@ export default function EventGuests() {
     }
   }
 
+  async function handleDeleteGuest(guest) {
+    const confirmed = window.confirm(`Remove ${guest.name} from the guest list?`);
+    if (!confirmed) return;
+    setError('');
+    try {
+      await api.deleteGuest(id, guest._id);
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(guest._id);
+        return next;
+      });
+      await loadGuests();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   function inviteMessage(guest) {
     return `Hi ${guest.name}! You're invited to ${event?.title || 'our event'}. Please RSVP here: ${inviteUrlFor(guest)}`;
   }
@@ -336,6 +353,14 @@ export default function EventGuests() {
                     <span className={`badge guest-status-badge guest-status-${g.status}`}>
                       {g.status === 'accepted' ? 'Attending' : g.status === 'declined' ? "Can't attend" : 'Invited'}
                     </span>
+                    <button
+                      className="btn danger guest-share-btn"
+                      type="button"
+                      onClick={() => handleDeleteGuest(g)}
+                      aria-label={`Remove ${g.name}`}
+                    >
+                      Remove
+                    </button>
                   </div>
                 </li>
               ))}
