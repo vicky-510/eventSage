@@ -218,7 +218,7 @@ router.post(
         name: req.body.name,
         phone: req.body.phone || '',
         inviteToken: crypto.randomBytes(12).toString('hex'),
-        status: 'invited',
+        status: 'not_sent',
       });
 
       res.status(201).json(guest);
@@ -250,7 +250,7 @@ router.post(
           name,
           phone: raw?.phone ? String(raw.phone).trim() : '',
           inviteToken: crypto.randomBytes(12).toString('hex'),
-          status: 'invited',
+          status: 'not_sent',
         });
       }
       if (entries.length === 0) {
@@ -264,6 +264,26 @@ router.post(
     }
   }
 );
+
+// The host calls this right after actually sharing a guest's link (copy or
+// WhatsApp), so the guest moves from "not sent" to "awaiting response"
+// instead of looking invited the moment the record is created.
+router.post('/:id/guests/:guestId/mark-sent', async (req, res, next) => {
+  try {
+    const event = await findOwnedEvent(req, res);
+    if (!event) return;
+    const guest = await Guest.findOne({ _id: req.params.guestId, eventId: event._id });
+    if (!guest) return res.status(404).json({ error: 'Guest not found' });
+    if (guest.status === 'not_sent') {
+      guest.status = 'invited';
+      guest.sentAt = new Date();
+      await guest.save();
+    }
+    res.json(guest);
+  } catch (err) {
+    next(err);
+  }
+});
 
 router.delete('/:id/guests/:guestId', async (req, res, next) => {
   try {

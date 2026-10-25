@@ -3,10 +3,18 @@ import { Link, useParams } from 'react-router-dom';
 import { api } from '../api/client.js';
 
 const SECTIONS = [
+  { key: 'not_sent', title: 'Not sent yet', emptyText: "Every guest's invite has been sent." },
+  { key: 'invited', title: 'Awaiting response', emptyText: 'No pending invites.' },
   { key: 'accepted', title: 'Attending', emptyText: 'No one has confirmed yet.' },
   { key: 'declined', title: "Not attending", emptyText: 'No declines yet.' },
-  { key: 'invited', title: 'Awaiting response', emptyText: 'Everyone has responded.' },
 ];
+
+const STATUS_LABEL = {
+  not_sent: 'Not sent',
+  invited: 'Awaiting response',
+  accepted: 'Attending',
+  declined: "Can't attend",
+};
 
 export default function EventGuests() {
   const { id } = useParams();
@@ -86,6 +94,16 @@ export default function EventGuests() {
     return `${window.location.origin}/e/${event.publicId}?g=${guest.inviteToken}`;
   }
 
+  async function markSentIfNeeded(guest) {
+    if (guest.status !== 'not_sent') return;
+    try {
+      await api.markGuestSent(id, guest._id);
+      await loadGuests();
+    } catch {
+      // non-critical — the link still works even if the status update failed
+    }
+  }
+
   async function copyLink(guest) {
     const url = inviteUrlFor(guest);
     try {
@@ -95,6 +113,7 @@ export default function EventGuests() {
     } catch {
       window.prompt('Copy this link:', url);
     }
+    await markSentIfNeeded(guest);
   }
 
   async function handleDeleteGuest(guest) {
@@ -133,25 +152,26 @@ export default function EventGuests() {
     });
   }
 
-  function toggleSelectAllInvited(invitedList) {
+  function toggleSelectAllNotSent(notSentList) {
     setSelectedIds((prev) => {
-      const allSelected = invitedList.length > 0 && invitedList.every((g) => prev.has(g._id));
+      const allSelected = notSentList.length > 0 && notSentList.every((g) => prev.has(g._id));
       if (allSelected) return new Set();
-      return new Set(invitedList.map((g) => g._id));
+      return new Set(notSentList.map((g) => g._id));
     });
   }
 
   function startSendQueue() {
-    const ids = guests.filter((g) => selectedIds.has(g._id) && g.status === 'invited').map((g) => g._id);
+    const ids = guests.filter((g) => selectedIds.has(g._id) && g.status === 'not_sent').map((g) => g._id);
     if (ids.length === 0) return;
     setSendQueue({ ids, index: 0 });
     openWhatsAppFor(ids[0]);
   }
 
-  function openWhatsAppFor(guestId) {
+  async function openWhatsAppFor(guestId) {
     const guest = guests.find((g) => g._id === guestId);
     if (!guest) return;
     window.open(whatsappShareUrl(guest), '_blank', 'noreferrer');
+    await markSentIfNeeded(guest);
   }
 
   function sendNextInQueue() {
@@ -168,10 +188,11 @@ export default function EventGuests() {
 
   if (loading) return <div className="container">Loading…</div>;
 
+  const notSent = guests.filter((g) => g.status === 'not_sent');
+  const invited = guests.filter((g) => g.status === 'invited');
   const accepted = guests.filter((g) => g.status === 'accepted');
   const declined = guests.filter((g) => g.status === 'declined');
-  const invited = guests.filter((g) => g.status === 'invited');
-  const grouped = { accepted, declined, invited };
+  const grouped = { not_sent: notSent, invited, accepted, declined };
 
   return (
     <div className="container">
@@ -181,6 +202,14 @@ export default function EventGuests() {
       <h1>{event ? `Guests — ${event.title}` : 'Guests'}</h1>
 
       <div className="guest-summary-row">
+        <div className="guest-summary-stat">
+          <span className="guest-summary-value">{notSent.length}</span>
+          <span className="guest-summary-label">Not sent yet</span>
+        </div>
+        <div className="guest-summary-stat guest-summary-invited">
+          <span className="guest-summary-value">{invited.length}</span>
+          <span className="guest-summary-label">Awaiting response</span>
+        </div>
         <div className="guest-summary-stat guest-summary-accepted">
           <span className="guest-summary-value">{accepted.length}</span>
           <span className="guest-summary-label">Attending</span>
@@ -188,10 +217,6 @@ export default function EventGuests() {
         <div className="guest-summary-stat guest-summary-declined">
           <span className="guest-summary-value">{declined.length}</span>
           <span className="guest-summary-label">Not attending</span>
-        </div>
-        <div className="guest-summary-stat guest-summary-invited">
-          <span className="guest-summary-value">{invited.length}</span>
-          <span className="guest-summary-label">Awaiting response</span>
         </div>
         <div className="guest-summary-stat">
           <span className="guest-summary-value">{guests.length}</span>
@@ -244,13 +269,13 @@ export default function EventGuests() {
         </form>
         {addedCount && (
           <p className="hint-text" style={{ marginTop: '0.4rem' }}>
-            Added {addedCount} guest{addedCount === 1 ? '' : 's'}. Select them below and use "Send via
-            WhatsApp" to invite them.
+            Added {addedCount} guest{addedCount === 1 ? '' : 's'} under "Not sent yet" below. Select them and
+            use "Send via WhatsApp", or copy their link, to actually invite them.
           </p>
         )}
         <p className="hint-text" style={{ marginTop: '0.4rem' }}>
-          Each guest gets their own personal RSVP link with their name already filled in. Add a phone number
-          to message them on WhatsApp directly, or leave it blank and copy the link elsewhere.
+          Each guest gets their own personal RSVP link with their name already filled in. A guest only moves
+          to "Awaiting response" once you've actually sent them their link.
         </p>
       </div>
 
@@ -294,8 +319,8 @@ export default function EventGuests() {
         const sectionGuests = grouped[section.key].filter(
           (g) => !q || g.name.toLowerCase().includes(q) || (g.email || '').toLowerCase().includes(q)
         );
-        const isInvitedSection = section.key === 'invited';
-        const allSelected = isInvitedSection && sectionGuests.length > 0 && sectionGuests.every((g) => selectedIds.has(g._id));
+        const isNotSentSection = section.key === 'not_sent';
+        const allSelected = isNotSentSection && sectionGuests.length > 0 && sectionGuests.every((g) => selectedIds.has(g._id));
         return (
         <div key={section.key}>
           <h2 className="section-title">
@@ -308,14 +333,14 @@ export default function EventGuests() {
               <table className="guest-table">
                 <thead>
                   <tr>
-                    {isInvitedSection && (
+                    {isNotSentSection && (
                       <th className="guest-table-check">
                         <label className="guest-select-all">
                           <input
                             type="checkbox"
                             checked={allSelected}
-                            onChange={() => toggleSelectAllInvited(sectionGuests)}
-                            aria-label="Select all awaiting response"
+                            onChange={() => toggleSelectAllNotSent(sectionGuests)}
+                            aria-label="Select all not sent yet"
                           />
                           Select all
                         </label>
@@ -328,7 +353,7 @@ export default function EventGuests() {
                 <tbody>
                   {sectionGuests.map((g) => (
                     <tr key={g._id} className={`guest-${g.status}`}>
-                      {isInvitedSection && (
+                      {isNotSentSection && (
                         <td className="guest-table-check">
                           <input
                             type="checkbox"
@@ -351,19 +376,18 @@ export default function EventGuests() {
                       </td>
                       <td>
                         <div className="guest-row-actions">
-                          {g.inviteToken && g.status === 'invited' && (
+                          {g.inviteToken && (g.status === 'not_sent' || g.status === 'invited') && (
                             <>
                               <button className="btn secondary guest-share-btn" type="button" onClick={() => copyLink(g)}>
                                 {copiedId === g._id ? 'Copied!' : 'Copy link'}
                               </button>
-                              <a
+                              <button
                                 className="btn secondary guest-share-btn"
-                                href={whatsappShareUrl(g)}
-                                target="_blank"
-                                rel="noreferrer"
+                                type="button"
+                                onClick={() => openWhatsAppFor(g._id)}
                               >
                                 WhatsApp
-                              </a>
+                              </button>
                             </>
                           )}
                           <button
@@ -375,7 +399,7 @@ export default function EventGuests() {
                             Remove
                           </button>
                           <span className={`badge guest-status-badge guest-status-${g.status}`}>
-                            {g.status === 'accepted' ? 'Attending' : g.status === 'declined' ? "Can't attend" : 'Invited'}
+                            {STATUS_LABEL[g.status]}
                           </span>
                         </div>
                       </td>

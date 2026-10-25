@@ -28,14 +28,13 @@ export default function EventDetail() {
   }, [id]);
 
   function loadGuests(opts = {}) {
+    const hasResponded = (g) => g.status === 'accepted' || g.status === 'declined';
     return api
       .getGuests(id)
       .then((list) => {
         if (opts.detectNew) {
-          const prevResponded = new Set(
-            guests.filter((g) => g.status !== 'invited').map((g) => g._id)
-          );
-          const newlyResponded = list.find((g) => g.status !== 'invited' && !prevResponded.has(g._id));
+          const prevResponded = new Set(guests.filter(hasResponded).map((g) => g._id));
+          const newlyResponded = list.find((g) => hasResponded(g) && !prevResponded.has(g._id));
           if (newlyResponded) setJustResponded(newlyResponded);
         }
         setGuests(list);
@@ -177,6 +176,10 @@ export default function EventDetail() {
           <div className="guest-summary-stat guest-summary-invited">
             <span className="guest-summary-value">{guests.filter((g) => g.status === 'invited').length}</span>
             <span className="guest-summary-label">Awaiting response</span>
+          </div>
+          <div className="guest-summary-stat">
+            <span className="guest-summary-value">{guests.filter((g) => g.status === 'not_sent').length}</span>
+            <span className="guest-summary-label">Not sent yet</span>
           </div>
         </div>
         <Link className="btn" to={`/events/${id}/guests`}>
