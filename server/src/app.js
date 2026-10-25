@@ -11,10 +11,21 @@ import { errorHandler, notFound } from './middleware/errorHandler.js';
 export function createApp() {
   const app = express();
 
+  const allowedOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
   app.use(helmet());
   app.use(
     cors({
-      origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
+      origin(origin, callback) {
+        // Allow non-browser requests (no Origin header) and any listed origin.
+        if (!origin || allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+        return callback(new Error('Not allowed by CORS'));
+      },
       credentials: true,
     })
   );
