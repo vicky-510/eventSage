@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { exportPlanPdf } from '../utils/exportPlanPdf.js';
 import AssistantChat from '../components/AssistantChat.jsx';
+import Spinner from '../components/Spinner.jsx';
 
 const SEVERITY_LABEL = { critical: 'Critical', warning: 'Warning', info: 'Note' };
 
@@ -18,6 +19,7 @@ export default function EventDetail() {
   const [guests, setGuests] = useState([]);
   const [justResponded, setJustResponded] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     api
@@ -105,7 +107,18 @@ export default function EventDetail() {
     }
   }
 
-  if (loading) return <div className="container">Loading…</div>;
+  async function handleExportPdf() {
+    setExporting(true);
+    try {
+      await exportPlanPdf(event);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  if (loading) return <div className="container"><Spinner label="Loading event…" /></div>;
   if (error && !event) return <div className="container error-text">{error}</div>;
   if (!event) return null;
 
@@ -122,6 +135,7 @@ export default function EventDetail() {
 
       <div className="card" style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
         <button className="btn" onClick={handleGenerate} disabled={generating}>
+          {generating && <Spinner inline size={14} />}
           {generating ? 'Generating…' : hasPlan ? 'Regenerate plan' : 'Generate AI plan'}
         </button>
         <div>
@@ -131,11 +145,13 @@ export default function EventDetail() {
           <input id="share-link" readOnly value={shareUrl} onFocus={(e) => e.target.select()} style={{ width: 320 }} />
         </div>
         {hasPlan && (
-          <button className="btn secondary" onClick={() => exportPlanPdf(event)}>
-            Export PDF
+          <button className="btn secondary" onClick={handleExportPdf} disabled={exporting}>
+            {exporting && <Spinner inline size={14} />}
+            {exporting ? 'Exporting…' : 'Export PDF'}
           </button>
         )}
         <button className="btn danger" style={{ marginLeft: 'auto' }} onClick={handleDeleteEvent} disabled={deleting}>
+          {deleting && <Spinner inline size={14} />}
           {deleting ? 'Cancelling…' : 'Cancel event'}
         </button>
       </div>
@@ -258,6 +274,7 @@ export default function EventDetail() {
                 style={{ flex: 1 }}
               />
               <button className="btn secondary" type="submit" disabled={replanning}>
+                {replanning && <Spinner inline size={14} />}
                 {replanning ? 'Re-planning…' : 'Re-plan'}
               </button>
             </div>

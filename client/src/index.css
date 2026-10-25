@@ -1224,3 +1224,41 @@ thead .guest-table-check {
     padding: 3.5rem 1rem 2.5rem;
   }
 }
+
+/* Spinner */
+.spinner {
+  display: inline-block;
+  border-radius: 50%;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  animation: spin 0.7s linear infinite;
+}
+
+.spinner-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 2rem 0;
+  color: var(--color-text);
+  opacity: 0.85;
+}
+
+.spinner-label {
+  font-size: 0.95rem;
+}
+
+.btn .spinner {
+  margin-right: 0.5rem;
+  vertical-align: middle;
+  border-width: 2px;
+  border-color: currentColor;
+  border-top-color: transparent;
+  opacity: 0.9;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

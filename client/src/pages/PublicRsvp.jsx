@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import { api } from '../api/client.js';
+import Spinner from '../components/Spinner.jsx';
 
 function celebrate() {
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -57,7 +58,7 @@ export default function PublicRsvp() {
   }
 
   if (error && !event) return <div className="container error-text">{error}</div>;
-  if (!event) return <div className="container">Loading…</div>;
+  if (!event) return <div className="container"><Spinner label="Loading invitation…" /></div>;
 
   return (
     <div className="container" style={{ maxWidth: 480 }}>
@@ -93,6 +94,7 @@ export default function PublicRsvp() {
               </p>
             )}
             <button className="btn" type="submit" disabled={submitting}>
+              {submitting && <Spinner inline size={14} />}
               {submitting ? 'Submitting…' : 'Submit RSVP'}
             </button>
           </form>

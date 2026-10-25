@@ -5,6 +5,7 @@ import { daysUntil } from '../utils/dates.js';
 import DonutChart from '../components/charts/DonutChart.jsx';
 import BarChart from '../components/charts/BarChart.jsx';
 import EventCalendar from '../components/EventCalendar.jsx';
+import Spinner from '../components/Spinner.jsx';
 
 export default function Dashboard() {
   const [events, setEvents] = useState([]);
@@ -72,7 +73,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {loading && <p>Loading…</p>}
+      {loading && <Spinner label="Loading your events…" />}
       {error && <p className="error-text">{error}</p>}
 
       {!loading && events.length > 0 && (

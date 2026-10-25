@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api/client.js';
+import Spinner from '../components/Spinner.jsx';
 
 const SECTIONS = [
   { key: 'not_sent', title: 'Not sent yet', emptyText: "Every guest's invite has been sent." },
@@ -186,7 +187,7 @@ export default function EventGuests() {
     openWhatsAppFor(sendQueue.ids[nextIndex]);
   }
 
-  if (loading) return <div className="container">Loading…</div>;
+  if (loading) return <div className="container"><Spinner label="Loading guests…" /></div>;
 
   const notSent = guests.filter((g) => g.status === 'not_sent');
   const invited = guests.filter((g) => g.status === 'invited');
@@ -263,6 +264,7 @@ export default function EventGuests() {
 
           <div style={{ marginTop: '0.6rem' }}>
             <button className="btn" type="submit" disabled={creatingLink}>
+              {creatingLink && <Spinner inline size={14} />}
               {creatingLink ? 'Creating…' : 'Create link(s)'}
             </button>
           </div>
