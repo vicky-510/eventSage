@@ -318,7 +318,7 @@ export default function EventGuests() {
                   <tr>
                     {isInvitedSection && <th className="guest-table-check"></th>}
                     <th>Guest</th>
-                    <th className="guest-table-actions-head">Actions</th>
+                    <th className="guest-table-actions-head"></th>
                   </tr>
                 </thead>
                 <tbody>
