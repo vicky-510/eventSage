@@ -32,7 +32,14 @@ EventSage turns a short event brief (occasion, date, location, guest count, budg
 - `/auth/login` and `/auth/signup` are rate-limited (`express-rate-limit`) against brute force.
 - All inputs validated and sanitized server-side with `express-validator`.
 - `helmet` for secure HTTP headers; CORS locked to the deployed frontend origin.
+- `express-mongo-sanitize` strips Mongo query operators (`$gt`, `$where`, etc.) from request bodies/params to prevent NoSQL injection.
 - Login errors are intentionally generic ("Invalid email or password") for both a wrong password and an unknown email, to avoid leaking which emails are registered.
+
+### Accessibility
+- Semantic landmarks (`<nav>`, `<main>`) and a visible skip-to-content link for keyboard/screen-reader users.
+- Every form input has an associated `<label>`; errors are announced via `role="alert"`.
+- All interactive controls (checklist status, RSVP, nav) are plain `<button>`/`<a>` elements, fully keyboard-operable with visible focus outlines.
+- Palette checked against WCAG AA: all text/background and button-label color pairs meet or exceed 4.5:1 contrast.
 
 ### Core Features
 - Email/password signup & login with secure session handling.
@@ -78,14 +85,23 @@ npm run dev
 
 ## Testing
 
-Backend tests (`server/tests/`) cover:
+**Backend** (`server/tests/`, Jest + Supertest + mongodb-memory-server):
 - Signup: success, duplicate email rejected, weak password rejected.
 - Login: success issues tokens, wrong password / unknown email both get the same generic error.
 - Protected routes reject requests with no token or an invalid token.
 - Event creation flow end-to-end with a real JWT.
 - AI plan sanitization: malformed/partial AI JSON is cleaned rather than trusted.
+- Gemini fallback chain: succeeds on the first model, falls through on failures, and fails safely when every model is down.
 
 Run with `npm test` inside `server/`.
+
+**Frontend** (`client/src/**/*.test.{js,jsx}`, Vitest + React Testing Library):
+- `daysUntil` date-math utility (future/past/missing date).
+- Login page renders accessible, labeled form fields and a reachable submit button.
+
+Run with `npm test` inside `client/`.
+
+**CI**: `.github/workflows/ci.yml` runs both suites (and the frontend build) on every push/PR to `main`.
 
 ## Assumptions
 

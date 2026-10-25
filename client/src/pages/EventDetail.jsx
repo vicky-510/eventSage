@@ -146,7 +146,7 @@ export default function EventDetail() {
             {event.plan.checklist.map((c, i) => (
               <li key={i} style={{ marginBottom: '0.5rem' }}>
                 <button
-                  className="btn secondary"
+                  className={`btn ${c.status === 'paid' ? 'status-paid' : c.status === 'booked' ? 'status-booked' : 'secondary'}`}
                   onClick={() => toggleChecklistStatus(i)}
                   aria-label={`Mark ${c.task} status, currently ${c.status}`}
                   style={{ marginRight: '0.6rem', padding: '0.3rem 0.8rem' }}

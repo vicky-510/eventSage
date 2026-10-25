@@ -2,6 +2,7 @@ import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import mongoSanitize from 'express-mongo-sanitize';
 import authRoutes from './routes/auth.js';
 import eventRoutes from './routes/events.js';
 import publicRoutes from './routes/public.js';
@@ -19,6 +20,7 @@ export function createApp() {
   );
   app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());
+  app.use(mongoSanitize());
 
   app.get('/health', (req, res) => res.json({ ok: true }));
   app.use('/auth', authRoutes);
