@@ -223,6 +223,38 @@ router.post(
   }
 );
 
+// Same as above but for a whole batch of names at once, so adding a guest
+// list doesn't mean one request (and one round trip) per name.
+router.post(
+  '/:id/guests/bulk',
+  [body('names').isArray({ min: 1, max: 200 }).withMessage('Provide at least one guest name')],
+  validate,
+  async (req, res, next) => {
+    try {
+      const event = await findOwnedEvent(req, res);
+      if (!event) return;
+
+      const names = [...new Set(req.body.names.map((n) => String(n).trim()).filter(Boolean))];
+      if (names.length === 0) {
+        return res.status(400).json({ error: 'Provide at least one guest name' });
+      }
+
+      const guests = await Guest.insertMany(
+        names.map((name) => ({
+          eventId: event._id,
+          name,
+          inviteToken: crypto.randomBytes(12).toString('hex'),
+          status: 'invited',
+        }))
+      );
+
+      res.status(201).json(guests);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 router.post(
   '/:id/chat',
   aiLimiter,

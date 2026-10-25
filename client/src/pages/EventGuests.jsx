@@ -14,9 +14,11 @@ export default function EventGuests() {
   const [guests, setGuests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [linkGuestName, setLinkGuestName] = useState('');
+  const [linkGuestNames, setLinkGuestNames] = useState('');
   const [creatingLink, setCreatingLink] = useState(false);
+  const [addedCount, setAddedCount] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     api.getEvent(id).then(setEvent).catch((err) => setError(err.message));
@@ -39,12 +41,22 @@ export default function EventGuests() {
 
   async function handleCreateLink(e) {
     e.preventDefault();
-    if (!linkGuestName.trim()) return;
+    const names = linkGuestNames
+      .split(/[,\n]/)
+      .map((n) => n.trim())
+      .filter(Boolean);
+    if (names.length === 0) return;
     setCreatingLink(true);
     setError('');
+    setAddedCount(null);
     try {
-      await api.createGuestLink(id, linkGuestName.trim());
-      setLinkGuestName('');
+      if (names.length === 1) {
+        await api.createGuestLink(id, names[0]);
+      } else {
+        await api.createGuestLinksBulk(id, names);
+      }
+      setAddedCount(names.length);
+      setLinkGuestNames('');
       await loadGuests();
     } catch (err) {
       setError(err.message);
@@ -114,36 +126,60 @@ export default function EventGuests() {
       )}
 
       <div className="card" style={{ marginTop: '1.5rem' }}>
-        <form onSubmit={handleCreateLink} className="field" style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
-          <div style={{ flex: 1 }}>
-            <label htmlFor="link-guest-name">Add a guest and get their personal RSVP link</label>
-            <input
-              id="link-guest-name"
-              placeholder="Guest name"
-              value={linkGuestName}
-              onChange={(e) => setLinkGuestName(e.target.value)}
-            />
+        <form onSubmit={handleCreateLink} className="field">
+          <label htmlFor="link-guest-names">Add guests and get their personal RSVP links</label>
+          <textarea
+            id="link-guest-names"
+            rows={3}
+            placeholder={'One name per line (or comma-separated), e.g.\nPriya Sharma\nRahul Verma'}
+            value={linkGuestNames}
+            onChange={(e) => setLinkGuestNames(e.target.value)}
+          />
+          <div style={{ marginTop: '0.6rem' }}>
+            <button className="btn" type="submit" disabled={creatingLink}>
+              {creatingLink ? 'Creating…' : 'Create link(s)'}
+            </button>
           </div>
-          <button className="btn" type="submit" disabled={creatingLink}>
-            {creatingLink ? 'Creating…' : 'Create link'}
-          </button>
         </form>
+        {addedCount && (
+          <p className="hint-text" style={{ marginTop: '0.4rem' }}>
+            Added {addedCount} guest{addedCount === 1 ? '' : 's'}. Use "Copy link" or "WhatsApp" below to share
+            with each of them.
+          </p>
+        )}
         <p className="hint-text" style={{ marginTop: '0.4rem' }}>
-          Share the generated link yourself — WhatsApp, SMS, in person, however you like. This page updates
+          Share the generated links yourself — WhatsApp, SMS, in person, however you like. This page updates
           as guests respond.
         </p>
       </div>
 
-      {SECTIONS.map((section) => (
+      {guests.length > 0 && (
+        <div className="field" style={{ marginTop: '1.5rem', maxWidth: 360 }}>
+          <label htmlFor="guest-search">Find a guest</label>
+          <input
+            id="guest-search"
+            placeholder="Search by name or email…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      )}
+
+      {SECTIONS.map((section) => {
+        const q = search.trim().toLowerCase();
+        const sectionGuests = grouped[section.key].filter(
+          (g) => !q || g.name.toLowerCase().includes(q) || (g.email || '').toLowerCase().includes(q)
+        );
+        return (
         <div key={section.key}>
           <h2 className="section-title">
-            {section.title} ({grouped[section.key].length})
+            {section.title} ({sectionGuests.length}{q ? ` of ${grouped[section.key].length}` : ''})
           </h2>
-          {grouped[section.key].length === 0 ? (
-            <p className="hint-text">{section.emptyText}</p>
+          {sectionGuests.length === 0 ? (
+            <p className="hint-text">{q ? 'No matches.' : section.emptyText}</p>
           ) : (
             <ul className="guest-list">
-              {grouped[section.key].map((g) => (
+              {sectionGuests.map((g) => (
                 <li key={g._id} className={`guest-row guest-${g.status}`}>
                   <div>
                     <strong>{g.name}</strong>
@@ -178,7 +214,8 @@ export default function EventGuests() {
             </ul>
           )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

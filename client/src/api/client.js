@@ -90,6 +90,8 @@ export const api = {
   getGuests: (id) => apiRequest(`/events/${id}/guests`),
   createGuestLink: (id, name) =>
     apiRequest(`/events/${id}/guests/link`, { method: 'POST', body: JSON.stringify({ name }) }),
+  createGuestLinksBulk: (id, names) =>
+    apiRequest(`/events/${id}/guests/bulk`, { method: 'POST', body: JSON.stringify({ names }) }),
 
   getPublicEvent: (publicId, inviteToken) =>
     apiRequest(`/public/events/${publicId}${inviteToken ? `?g=${encodeURIComponent(inviteToken)}` : ''}`),
