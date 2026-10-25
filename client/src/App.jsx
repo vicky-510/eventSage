@@ -9,6 +9,7 @@ import Signup from './pages/Signup.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import NewEvent from './pages/NewEvent.jsx';
 import EventDetail from './pages/EventDetail.jsx';
+import EventGuests from './pages/EventGuests.jsx';
 import PublicRsvp from './pages/PublicRsvp.jsx';
 
 export default function App() {
@@ -44,6 +45,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <EventDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/events/:id/guests"
+            element={
+              <ProtectedRoute>
+                <EventGuests />
               </ProtectedRoute>
             }
           />

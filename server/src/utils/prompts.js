@@ -36,16 +36,48 @@ Rules:
 }
 
 export function buildReplanPrompt(event, changeDescription) {
-  return `You are re-optimizing an existing event budget given a change.
+  return `You are re-optimizing an existing event plan given a change the organizer just described. Update
+every part of the plan that the change affects (not just the budget) — a lost deposit, a date move, a
+venue change, or a guest count change can also affect the timeline, checklist, ideas, or insights.
 
-Current budget (JSON): ${JSON.stringify(event.plan.budget)}
-Total budget: ${event.budgetTotal}
+Event brief:
+- Title: ${event.title}
+- Occasion type: ${event.occasionType || 'not specified'}
+- Date: ${event.date || 'not specified'}
+- Location: ${event.location || 'not specified'}
+- Guest count: ${event.guestCount || 'not specified'}
+- Total budget: ${event.budgetTotal || 'not specified'}
+- Vibe/notes: ${event.vibe || 'none'}
+
+Current plan (JSON):
+- Budget: ${JSON.stringify(event.plan.budget)}
+- Timeline: ${JSON.stringify(event.plan.timeline)}
+- Checklist: ${JSON.stringify(event.plan.checklist)}
+- Ideas: ${JSON.stringify(event.plan.ideas)}
+- Moodboard: ${JSON.stringify(event.plan.moodboard)}
+
 Change described by the user: "${changeDescription}"
 
-Re-allocate the remaining budget across categories to account for this change, keeping the total at or under the original total budget where possible.
+Re-plan accordingly, keeping anything unaffected by the change the same. Respond with ONLY valid JSON
+(no markdown, no commentary) matching exactly this shape:
+{
+  "budget": [{ "category": string, "amount": number }],
+  "timeline": [{ "label": string, "time": string, "notes": string }],
+  "checklist": [{ "task": string, "dueDate": "YYYY-MM-DD", "status": "todo" }],
+  "ideas": [string],
+  "moodboard": {
+    "themeName": string,
+    "colors": [string, string, string, string],
+    "description": string
+  },
+  "insights": [{ "severity": "info" | "warning" | "critical", "message": string }]
+}
 
-Respond with ONLY valid JSON (no markdown, no commentary) matching exactly:
-{ "budget": [{ "category": string, "amount": number }] }`;
+Rules:
+- Budget category amounts must sum to approximately the original total budget where possible.
+- Checklist due dates must be calculated backward from the event date.
+- "insights" should call out anything a planner would worry about as a result of this change. 2-4 items,
+  most severe first, empty array if nothing stands out.`;
 }
 
 export function buildIntakePrompt(messages) {

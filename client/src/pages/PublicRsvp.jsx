@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import { api } from '../api/client.js';
 
@@ -16,6 +16,8 @@ function celebrate() {
 
 export default function PublicRsvp() {
   const { publicId } = useParams();
+  const [searchParams] = useSearchParams();
+  const inviteToken = searchParams.get('g') || '';
   const [event, setEvent] = useState(null);
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -26,17 +28,25 @@ export default function PublicRsvp() {
 
   useEffect(() => {
     api
-      .getPublicEvent(publicId)
-      .then(setEvent)
+      .getPublicEvent(publicId, inviteToken)
+      .then((data) => {
+        setEvent(data);
+        if (data.invite?.name) setName(data.invite.name);
+      })
       .catch((err) => setError(err.message));
-  }, [publicId]);
+  }, [publicId, inviteToken]);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setSubmitting(true);
     setError('');
     try {
-      await api.submitRsvp(publicId, { name, attending: attending === 'yes', dietaryNotes });
+      await api.submitRsvp(publicId, {
+        name,
+        attending: attending === 'yes',
+        dietaryNotes,
+        inviteToken: inviteToken || undefined,
+      });
       setSubmitted(true);
       if (attending === 'yes') celebrate();
     } catch (err) {

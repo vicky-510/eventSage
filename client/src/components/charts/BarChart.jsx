@@ -26,9 +26,10 @@ export default function BarChart({ data, height = 160, formatValue = (v) => v })
             />
             <span
               style={{
-                fontSize: '0.72rem',
+                fontSize: '0.78rem',
+                fontWeight: 600,
                 marginTop: '0.5rem',
-                opacity: 0.75,
+                color: 'var(--color-text)',
                 textAlign: 'center',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',

@@ -4,8 +4,16 @@ const guestSchema = new mongoose.Schema(
   {
     eventId: { type: mongoose.Schema.Types.ObjectId, ref: 'Event', required: true, index: true },
     name: { type: String, required: true, trim: true },
-    attending: { type: Boolean, required: true },
+    email: { type: String, trim: true, lowercase: true, default: '' },
+    inviteToken: { type: String, index: true, sparse: true, unique: true },
+    status: {
+      type: String,
+      enum: ['invited', 'accepted', 'declined'],
+      default: 'invited',
+    },
+    attending: { type: Boolean },
     dietaryNotes: { type: String, trim: true, default: '' },
+    respondedAt: { type: Date },
   },
   { timestamps: true }
 );

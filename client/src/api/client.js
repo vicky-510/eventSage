@@ -29,14 +29,34 @@ async function rawRequest(path, options = {}) {
   return body;
 }
 
+// Concurrent requests that all hit a 401 at once (e.g. several widgets
+// fetching on page load right as the access token expires) must share a
+// single refresh call. The refresh token rotates server-side on every use,
+// so firing one refresh per request would make all but the first fail with
+// "token revoked" and log the user out.
+let refreshPromise = null;
+
+function refreshAccessToken() {
+  if (!refreshPromise) {
+    refreshPromise = rawRequest('/auth/refresh', { method: 'POST' })
+      .then((refreshed) => {
+        setAccessToken(refreshed.accessToken);
+        return refreshed;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
+
 export async function apiRequest(path, options = {}) {
   try {
     return await rawRequest(path, options);
   } catch (err) {
     if (err.status === 401 && path !== '/auth/refresh') {
       try {
-        const refreshed = await rawRequest('/auth/refresh', { method: 'POST' });
-        setAccessToken(refreshed.accessToken);
+        await refreshAccessToken();
         return await rawRequest(path, options);
       } catch {
         setAccessToken(null);
@@ -67,7 +87,12 @@ export const api = {
   chatWithEvent: (id, message) =>
     apiRequest(`/events/${id}/chat`, { method: 'POST', body: JSON.stringify({ message }) }),
 
-  getPublicEvent: (publicId) => apiRequest(`/public/events/${publicId}`),
+  getGuests: (id) => apiRequest(`/events/${id}/guests`),
+  createGuestLink: (id, name) =>
+    apiRequest(`/events/${id}/guests/link`, { method: 'POST', body: JSON.stringify({ name }) }),
+
+  getPublicEvent: (publicId, inviteToken) =>
+    apiRequest(`/public/events/${publicId}${inviteToken ? `?g=${encodeURIComponent(inviteToken)}` : ''}`),
   submitRsvp: (publicId, payload) =>
     apiRequest(`/public/events/${publicId}/rsvp`, { method: 'POST', body: JSON.stringify(payload) }),
 };

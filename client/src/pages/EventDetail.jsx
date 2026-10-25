@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { exportPlanPdf } from '../utils/exportPlanPdf.js';
 import AssistantChat from '../components/AssistantChat.jsx';
@@ -14,6 +14,8 @@ export default function EventDetail() {
   const [replanText, setReplanText] = useState('');
   const [replanning, setReplanning] = useState(false);
   const [error, setError] = useState('');
+  const [guests, setGuests] = useState([]);
+  const [justResponded, setJustResponded] = useState(null);
 
   useEffect(() => {
     api
@@ -21,6 +23,29 @@ export default function EventDetail() {
       .then(setEvent)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
+  }, [id]);
+
+  function loadGuests(opts = {}) {
+    return api
+      .getGuests(id)
+      .then((list) => {
+        if (opts.detectNew) {
+          const prevResponded = new Set(
+            guests.filter((g) => g.status !== 'invited').map((g) => g._id)
+          );
+          const newlyResponded = list.find((g) => g.status !== 'invited' && !prevResponded.has(g._id));
+          if (newlyResponded) setJustResponded(newlyResponded);
+        }
+        setGuests(list);
+      })
+      .catch((err) => setError(err.message));
+  }
+
+  useEffect(() => {
+    loadGuests();
+    const interval = setInterval(() => loadGuests({ detectNew: true }), 15000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   async function handleGenerate() {
@@ -101,6 +126,43 @@ export default function EventDetail() {
         </p>
       )}
 
+      {justResponded && (
+        <div className="card rsvp-banner" role="status">
+          <span className="rsvp-banner-icon">🎉</span>
+          <div>
+            <strong>{justResponded.name}</strong> just{' '}
+            {justResponded.status === 'accepted' ? "RSVP'd yes!" : "responded — can't make it."}
+            {justResponded.dietaryNotes && (
+              <div className="rsvp-banner-notes">Dietary notes: {justResponded.dietaryNotes}</div>
+            )}
+          </div>
+          <button className="btn secondary rsvp-banner-dismiss" onClick={() => setJustResponded(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      <h2 className="section-title">Guests</h2>
+      <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+        <div className="guest-summary-row" style={{ marginTop: 0 }}>
+          <div className="guest-summary-stat guest-summary-accepted">
+            <span className="guest-summary-value">{guests.filter((g) => g.status === 'accepted').length}</span>
+            <span className="guest-summary-label">Attending</span>
+          </div>
+          <div className="guest-summary-stat guest-summary-declined">
+            <span className="guest-summary-value">{guests.filter((g) => g.status === 'declined').length}</span>
+            <span className="guest-summary-label">Not attending</span>
+          </div>
+          <div className="guest-summary-stat guest-summary-invited">
+            <span className="guest-summary-value">{guests.filter((g) => g.status === 'invited').length}</span>
+            <span className="guest-summary-label">Awaiting response</span>
+          </div>
+        </div>
+        <Link className="btn" to={`/events/${id}/guests`}>
+          Manage guests
+        </Link>
+      </div>
+
       {hasPlan && (
         <>
           {event.plan.insights?.length > 0 && (
@@ -162,7 +224,7 @@ export default function EventDetail() {
           })()}
 
           <form onSubmit={handleReplan} className="field" style={{ marginTop: '1rem' }}>
-            <label htmlFor="replan">Something changed? Describe it and re-plan the budget</label>
+            <label htmlFor="replan">Something changed? Describe it and we'll re-plan the whole event</label>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <input
                 id="replan"

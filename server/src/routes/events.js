@@ -1,11 +1,13 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import { body, validationResult } from 'express-validator';
 import Event from '../models/Event.js';
+import Guest from '../models/Guest.js';
 import { requireAuth } from '../middleware/auth.js';
 import { generateStructuredPlan, generateText } from '../utils/gemini.js';
 import { buildPlanPrompt, buildReplanPrompt, buildIntakePrompt, buildAssistantChatPrompt } from '../utils/prompts.js';
-import { sanitizePlan, sanitizeBudget, sanitizeIntakeBrief } from '../utils/validatePlan.js';
+import { sanitizePlan, sanitizeIntakeBrief } from '../utils/validatePlan.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -120,7 +122,14 @@ router.patch('/:id', async (req, res, next) => {
 
     const allowed = ['title', 'occasionType', 'date', 'location', 'guestCount', 'budgetTotal', 'vibe', 'plan'];
     for (const key of allowed) {
-      if (req.body[key] !== undefined) event[key] = req.body[key];
+      if (req.body[key] === undefined) continue;
+      if (key === 'plan') {
+        // Merge rather than replace so a caller patching one plan field
+        // (e.g. just the checklist) can never wipe out the rest of the plan.
+        event.plan = { ...event.plan.toObject(), ...req.body.plan };
+      } else {
+        event[key] = req.body[key];
+      }
     }
     await event.save();
     res.json(event);
@@ -168,10 +177,54 @@ router.post(
 
       const prompt = buildReplanPrompt(event, req.body.changeDescription);
       const { data, modelUsed } = await generateStructuredPlan(prompt);
-      event.plan.budget = sanitizeBudget(data);
+      event.plan = sanitizePlan(data);
       await event.save();
 
       res.json({ event, modelUsed });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+function clientOrigin() {
+  return (process.env.CLIENT_ORIGIN || '').split(',')[0] || 'http://localhost:5173';
+}
+
+function inviteUrlFor(event, guest) {
+  return guest.inviteToken ? `${clientOrigin()}/e/${event.publicId}?g=${guest.inviteToken}` : null;
+}
+
+router.get('/:id/guests', async (req, res, next) => {
+  try {
+    const event = await findOwnedEvent(req, res);
+    if (!event) return;
+    const guests = await Guest.find({ eventId: event._id }).sort({ respondedAt: -1, createdAt: -1 });
+    res.json(guests.map((g) => ({ ...g.toObject(), inviteUrl: inviteUrlFor(event, g) })));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Create a guest with a personal RSVP link but no email required — for sharing
+// by hand via WhatsApp, SMS, or any other channel instead of sending mail.
+router.post(
+  '/:id/guests/link',
+  [body('name').trim().notEmpty().withMessage('Guest name is required')],
+  validate,
+  async (req, res, next) => {
+    try {
+      const event = await findOwnedEvent(req, res);
+      if (!event) return;
+
+      const guest = await Guest.create({
+        eventId: event._id,
+        name: req.body.name,
+        inviteToken: crypto.randomBytes(12).toString('hex'),
+        status: 'invited',
+      });
+
+      res.status(201).json({ ...guest.toObject(), inviteUrl: inviteUrlFor(event, guest) });
     } catch (err) {
       next(err);
     }
