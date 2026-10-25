@@ -14,11 +14,15 @@ export default function EventGuests() {
   const [guests, setGuests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [linkGuestNames, setLinkGuestNames] = useState('');
+  const [linkGuestName, setLinkGuestName] = useState('');
+  const [linkGuestPhone, setLinkGuestPhone] = useState('');
+  const [bulkEntries, setBulkEntries] = useState('');
   const [creatingLink, setCreatingLink] = useState(false);
   const [addedCount, setAddedCount] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
   const [search, setSearch] = useState('');
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [sendQueue, setSendQueue] = useState(null); // { ids: [...], index: 0 }
 
   useEffect(() => {
     api.getEvent(id).then(setEvent).catch((err) => setError(err.message));
@@ -41,22 +45,34 @@ export default function EventGuests() {
 
   async function handleCreateLink(e) {
     e.preventDefault();
-    const names = linkGuestNames
-      .split(/[,\n]/)
-      .map((n) => n.trim())
-      .filter(Boolean);
-    if (names.length === 0) return;
     setCreatingLink(true);
     setError('');
     setAddedCount(null);
     try {
-      if (names.length === 1) {
-        await api.createGuestLink(id, names[0]);
+      // Bulk textarea takes priority if filled in; otherwise fall back to the
+      // single name/phone fields.
+      const bulkLines = bulkEntries
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+      if (bulkLines.length > 0) {
+        const parsed = bulkLines.map((line) => {
+          const [name, phone] = line.split(',').map((s) => s.trim());
+          return { name, phone: phone || '' };
+        });
+        await api.createGuestLinksBulk(id, parsed);
+        setAddedCount(parsed.length);
+        setBulkEntries('');
+      } else if (linkGuestName.trim()) {
+        await api.createGuestLink(id, linkGuestName.trim(), linkGuestPhone.trim());
+        setAddedCount(1);
+        setLinkGuestName('');
+        setLinkGuestPhone('');
       } else {
-        await api.createGuestLinksBulk(id, names);
+        setCreatingLink(false);
+        return;
       }
-      setAddedCount(names.length);
-      setLinkGuestNames('');
       await loadGuests();
     } catch (err) {
       setError(err.message);
@@ -81,9 +97,48 @@ export default function EventGuests() {
     }
   }
 
+  function inviteMessage(guest) {
+    return `Hi ${guest.name}! You're invited to ${event?.title || 'our event'}. Please RSVP here: ${inviteUrlFor(guest)}`;
+  }
+
   function whatsappShareUrl(guest) {
-    const text = `You're invited to ${event?.title || 'our event'}! RSVP here: ${inviteUrlFor(guest)}`;
-    return `https://wa.me/?text=${encodeURIComponent(text)}`;
+    const digits = (guest.phone || '').replace(/[^\d]/g, '');
+    const text = encodeURIComponent(inviteMessage(guest));
+    return digits ? `https://wa.me/${digits}?text=${text}` : `https://wa.me/?text=${text}`;
+  }
+
+  function toggleSelected(guestId) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(guestId)) next.delete(guestId);
+      else next.add(guestId);
+      return next;
+    });
+  }
+
+  function startSendQueue() {
+    const ids = guests.filter((g) => selectedIds.has(g._id) && g.status === 'invited').map((g) => g._id);
+    if (ids.length === 0) return;
+    setSendQueue({ ids, index: 0 });
+    openWhatsAppFor(ids[0]);
+  }
+
+  function openWhatsAppFor(guestId) {
+    const guest = guests.find((g) => g._id === guestId);
+    if (!guest) return;
+    window.open(whatsappShareUrl(guest), '_blank', 'noreferrer');
+  }
+
+  function sendNextInQueue() {
+    if (!sendQueue) return;
+    const nextIndex = sendQueue.index + 1;
+    if (nextIndex >= sendQueue.ids.length) {
+      setSendQueue(null);
+      setSelectedIds(new Set());
+      return;
+    }
+    setSendQueue({ ...sendQueue, index: nextIndex });
+    openWhatsAppFor(sendQueue.ids[nextIndex]);
   }
 
   if (loading) return <div className="container">Loading…</div>;
@@ -127,14 +182,35 @@ export default function EventGuests() {
 
       <div className="card" style={{ marginTop: '1.5rem' }}>
         <form onSubmit={handleCreateLink} className="field">
-          <label htmlFor="link-guest-names">Add guests and get their personal RSVP links</label>
+          <label htmlFor="link-guest-name">Add a guest</label>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <input
+              id="link-guest-name"
+              placeholder="Guest name"
+              value={linkGuestName}
+              onChange={(e) => setLinkGuestName(e.target.value)}
+              style={{ flex: 1, minWidth: 160 }}
+            />
+            <input
+              id="link-guest-phone"
+              placeholder="Phone (for WhatsApp, optional)"
+              value={linkGuestPhone}
+              onChange={(e) => setLinkGuestPhone(e.target.value)}
+              style={{ flex: 1, minWidth: 180 }}
+            />
+          </div>
+
+          <label htmlFor="bulk-entries" style={{ marginTop: '0.9rem' }}>
+            Or add several at once — one guest per line, as "Name, phone"
+          </label>
           <textarea
-            id="link-guest-names"
+            id="bulk-entries"
             rows={3}
-            placeholder={'One name per line (or comma-separated), e.g.\nPriya Sharma\nRahul Verma'}
-            value={linkGuestNames}
-            onChange={(e) => setLinkGuestNames(e.target.value)}
+            placeholder={'Priya Sharma, +91 98765 43210\nRahul Verma, +91 91234 56789'}
+            value={bulkEntries}
+            onChange={(e) => setBulkEntries(e.target.value)}
           />
+
           <div style={{ marginTop: '0.6rem' }}>
             <button className="btn" type="submit" disabled={creatingLink}>
               {creatingLink ? 'Creating…' : 'Create link(s)'}
@@ -143,25 +219,48 @@ export default function EventGuests() {
         </form>
         {addedCount && (
           <p className="hint-text" style={{ marginTop: '0.4rem' }}>
-            Added {addedCount} guest{addedCount === 1 ? '' : 's'}. Use "Copy link" or "WhatsApp" below to share
-            with each of them.
+            Added {addedCount} guest{addedCount === 1 ? '' : 's'}. Select them below and use "Send via
+            WhatsApp" to invite them.
           </p>
         )}
         <p className="hint-text" style={{ marginTop: '0.4rem' }}>
-          Share the generated links yourself — WhatsApp, SMS, in person, however you like. This page updates
-          as guests respond.
+          Each guest gets their own personal RSVP link with their name already filled in. Add a phone number
+          to message them on WhatsApp directly, or leave it blank and copy the link elsewhere.
         </p>
       </div>
 
+      {sendQueue && (
+        <div className="card rsvp-banner" role="status" style={{ marginTop: '1rem' }}>
+          <span className="rsvp-banner-icon">📤</span>
+          <div>
+            Opened WhatsApp for guest {sendQueue.index + 1} of {sendQueue.ids.length}. Send the message, then
+            come back here for the next one.
+          </div>
+          <button className="btn rsvp-banner-dismiss" onClick={sendNextInQueue}>
+            {sendQueue.index + 1 >= sendQueue.ids.length ? 'Done' : 'Next guest →'}
+          </button>
+        </div>
+      )}
+
       {guests.length > 0 && (
-        <div className="field" style={{ marginTop: '1.5rem', maxWidth: 360 }}>
-          <label htmlFor="guest-search">Find a guest</label>
-          <input
-            id="guest-search"
-            placeholder="Search by name or email…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap', marginTop: '1.5rem' }}>
+          <div className="field" style={{ maxWidth: 360, marginBottom: 0 }}>
+            <label htmlFor="guest-search">Find a guest</label>
+            <input
+              id="guest-search"
+              placeholder="Search by name or email…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <button
+            className="btn"
+            type="button"
+            disabled={selectedIds.size === 0 || !!sendQueue}
+            onClick={startSendQueue}
+          >
+            Send via WhatsApp ({selectedIds.size} selected)
+          </button>
         </div>
       )}
 
@@ -181,13 +280,25 @@ export default function EventGuests() {
             <ul className="guest-list">
               {sectionGuests.map((g) => (
                 <li key={g._id} className={`guest-row guest-${g.status}`}>
-                  <div>
-                    <strong>{g.name}</strong>
-                    {g.email && <span className="guest-email"> · {g.email}</span>}
-                    {g.dietaryNotes && <div className="guest-notes">Dietary notes: {g.dietaryNotes}</div>}
-                    {g.respondedAt && (
-                      <div className="guest-notes">Responded {new Date(g.respondedAt).toLocaleString()}</div>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem' }}>
+                    {g.status === 'invited' && (
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(g._id)}
+                        onChange={() => toggleSelected(g._id)}
+                        aria-label={`Select ${g.name}`}
+                        style={{ marginTop: '0.3rem' }}
+                      />
                     )}
+                    <div>
+                      <strong>{g.name}</strong>
+                      {g.email && <span className="guest-email"> · {g.email}</span>}
+                      {g.phone && <span className="guest-email"> · {g.phone}</span>}
+                      {g.dietaryNotes && <div className="guest-notes">Dietary notes: {g.dietaryNotes}</div>}
+                      {g.respondedAt && (
+                        <div className="guest-notes">Responded {new Date(g.respondedAt).toLocaleString()}</div>
+                      )}
+                    </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     {g.inviteToken && g.status === 'invited' && (

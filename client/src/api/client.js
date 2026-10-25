@@ -88,10 +88,10 @@ export const api = {
     apiRequest(`/events/${id}/chat`, { method: 'POST', body: JSON.stringify({ message }) }),
 
   getGuests: (id) => apiRequest(`/events/${id}/guests`),
-  createGuestLink: (id, name) =>
-    apiRequest(`/events/${id}/guests/link`, { method: 'POST', body: JSON.stringify({ name }) }),
-  createGuestLinksBulk: (id, names) =>
-    apiRequest(`/events/${id}/guests/bulk`, { method: 'POST', body: JSON.stringify({ names }) }),
+  createGuestLink: (id, name, phone) =>
+    apiRequest(`/events/${id}/guests/link`, { method: 'POST', body: JSON.stringify({ name, phone }) }),
+  createGuestLinksBulk: (id, guests) =>
+    apiRequest(`/events/${id}/guests/bulk`, { method: 'POST', body: JSON.stringify({ guests }) }),
 
   getPublicEvent: (publicId, inviteToken) =>
     apiRequest(`/public/events/${publicId}${inviteToken ? `?g=${encodeURIComponent(inviteToken)}` : ''}`),

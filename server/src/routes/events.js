@@ -202,7 +202,10 @@ router.get('/:id/guests', async (req, res, next) => {
 // by hand via WhatsApp, SMS, or any other channel instead of sending mail.
 router.post(
   '/:id/guests/link',
-  [body('name').trim().notEmpty().withMessage('Guest name is required')],
+  [
+    body('name').trim().notEmpty().withMessage('Guest name is required'),
+    body('phone').optional().trim(),
+  ],
   validate,
   async (req, res, next) => {
     try {
@@ -212,6 +215,7 @@ router.post(
       const guest = await Guest.create({
         eventId: event._id,
         name: req.body.name,
+        phone: req.body.phone || '',
         inviteToken: crypto.randomBytes(12).toString('hex'),
         status: 'invited',
       });
@@ -223,31 +227,36 @@ router.post(
   }
 );
 
-// Same as above but for a whole batch of names at once, so adding a guest
+// Same as above but for a whole batch of guests at once, so adding a guest
 // list doesn't mean one request (and one round trip) per name.
 router.post(
   '/:id/guests/bulk',
-  [body('names').isArray({ min: 1, max: 200 }).withMessage('Provide at least one guest name')],
+  [body('guests').isArray({ min: 1, max: 200 }).withMessage('Provide at least one guest')],
   validate,
   async (req, res, next) => {
     try {
       const event = await findOwnedEvent(req, res);
       if (!event) return;
 
-      const names = [...new Set(req.body.names.map((n) => String(n).trim()).filter(Boolean))];
-      if (names.length === 0) {
-        return res.status(400).json({ error: 'Provide at least one guest name' });
-      }
-
-      const guests = await Guest.insertMany(
-        names.map((name) => ({
+      const seen = new Set();
+      const entries = [];
+      for (const raw of req.body.guests) {
+        const name = String(raw?.name ?? raw ?? '').trim();
+        if (!name || seen.has(name)) continue;
+        seen.add(name);
+        entries.push({
           eventId: event._id,
           name,
+          phone: raw?.phone ? String(raw.phone).trim() : '',
           inviteToken: crypto.randomBytes(12).toString('hex'),
           status: 'invited',
-        }))
-      );
+        });
+      }
+      if (entries.length === 0) {
+        return res.status(400).json({ error: 'Provide at least one guest' });
+      }
 
+      const guests = await Guest.insertMany(entries);
       res.status(201).json(guests);
     } catch (err) {
       next(err);

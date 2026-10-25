@@ -5,6 +5,7 @@ const guestSchema = new mongoose.Schema(
     eventId: { type: mongoose.Schema.Types.ObjectId, ref: 'Event', required: true, index: true },
     name: { type: String, required: true, trim: true },
     email: { type: String, trim: true, lowercase: true, default: '' },
+    phone: { type: String, trim: true, default: '' },
     inviteToken: { type: String, index: true, sparse: true, unique: true },
     status: {
       type: String,
