@@ -16,10 +16,15 @@ const authLimiter = rateLimit({
 });
 
 const REFRESH_COOKIE_NAME = 'refreshToken';
+const isProd = process.env.NODE_ENV === 'production';
 const REFRESH_COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict',
+  // Frontend (Netlify) and backend (Vercel) are different sites in production,
+  // so the cookie must be SameSite=None (requires Secure) to survive a
+  // cross-site fetch. Locally, frontend and backend share no cookie domain
+  // either, but 'lax' is enough since dev traffic is same-site over HTTP.
+  secure: isProd,
+  sameSite: isProd ? 'none' : 'lax',
   maxAge: 7 * 24 * 60 * 60 * 1000,
   path: '/auth',
 };
@@ -137,7 +142,7 @@ router.post('/logout', async (req, res, next) => {
         // token already invalid, nothing to revoke
       }
     }
-    res.clearCookie(REFRESH_COOKIE_NAME, { path: '/auth' });
+    res.clearCookie(REFRESH_COOKIE_NAME, { path: '/auth', secure: isProd, sameSite: isProd ? 'none' : 'lax' });
     res.json({ ok: true });
   } catch (err) {
     next(err);
