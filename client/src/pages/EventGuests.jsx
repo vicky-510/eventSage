@@ -310,12 +310,15 @@ export default function EventGuests() {
                   <tr>
                     {isInvitedSection && (
                       <th className="guest-table-check">
-                        <input
-                          type="checkbox"
-                          checked={allSelected}
-                          onChange={() => toggleSelectAllInvited(sectionGuests)}
-                          aria-label="Select all awaiting response"
-                        />
+                        <label className="guest-select-all">
+                          <input
+                            type="checkbox"
+                            checked={allSelected}
+                            onChange={() => toggleSelectAllInvited(sectionGuests)}
+                            aria-label="Select all awaiting response"
+                          />
+                          Select all
+                        </label>
                       </th>
                     )}
                     <th>Guest</th>
