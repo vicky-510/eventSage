@@ -116,6 +116,14 @@ export default function EventGuests() {
     });
   }
 
+  function toggleSelectAllInvited(invitedList) {
+    setSelectedIds((prev) => {
+      const allSelected = invitedList.length > 0 && invitedList.every((g) => prev.has(g._id));
+      if (allSelected) return new Set();
+      return new Set(invitedList.map((g) => g._id));
+    });
+  }
+
   function startSendQueue() {
     const ids = guests.filter((g) => selectedIds.has(g._id) && g.status === 'invited').map((g) => g._id);
     if (ids.length === 0) return;
@@ -269,25 +277,34 @@ export default function EventGuests() {
         const sectionGuests = grouped[section.key].filter(
           (g) => !q || g.name.toLowerCase().includes(q) || (g.email || '').toLowerCase().includes(q)
         );
+        const isInvitedSection = section.key === 'invited';
+        const allSelected = isInvitedSection && sectionGuests.length > 0 && sectionGuests.every((g) => selectedIds.has(g._id));
         return (
         <div key={section.key}>
-          <h2 className="section-title">
-            {section.title} ({sectionGuests.length}{q ? ` of ${grouped[section.key].length}` : ''})
-          </h2>
+          <div className="guest-section-header">
+            <h2 className="section-title">
+              {section.title} ({sectionGuests.length}{q ? ` of ${grouped[section.key].length}` : ''})
+            </h2>
+            {isInvitedSection && sectionGuests.length > 0 && (
+              <label className="guest-select-all">
+                <input type="checkbox" checked={allSelected} onChange={() => toggleSelectAllInvited(sectionGuests)} />
+                Select all
+              </label>
+            )}
+          </div>
           {sectionGuests.length === 0 ? (
             <p className="hint-text">{q ? 'No matches.' : section.emptyText}</p>
           ) : (
             <ul className="guest-list">
               {sectionGuests.map((g) => (
                 <li key={g._id} className={`guest-row guest-${g.status}`}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem' }}>
+                  <div className="guest-row-main">
                     {g.status === 'invited' && (
                       <input
                         type="checkbox"
                         checked={selectedIds.has(g._id)}
                         onChange={() => toggleSelected(g._id)}
                         aria-label={`Select ${g.name}`}
-                        style={{ marginTop: '0.3rem' }}
                       />
                     )}
                     <div>
@@ -300,7 +317,7 @@ export default function EventGuests() {
                       )}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div className="guest-row-actions">
                     {g.inviteToken && g.status === 'invited' && (
                       <>
                         <button className="btn secondary guest-share-btn" type="button" onClick={() => copyLink(g)}>
