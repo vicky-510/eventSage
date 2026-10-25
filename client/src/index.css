@@ -1,13 +1,13 @@
 :root {
-  --color-bg: #faf3e8;
-  --color-surface: #ffffff;
-  --color-surface-alt: #f3e6d3;
-  --color-primary: #8b5e34;
-  --color-primary-dark: #6b4423;
-  --color-secondary: #c9a876;
-  --color-text: #3e2c1c;
+  --color-bg: #ffffff;
+  --color-surface: #f8fbff;
+  --color-surface-alt: #e0f0ff;
+  --color-primary: #ff6b6b;
+  --color-primary-dark: #ff4757;
+  --color-secondary: #1e90ff;
+  --color-text: #2c3e50;
   --color-text-on-primary: #ffffff;
-  --color-border: #d8c3a5;
+  --color-border: #c0d6e5;
   --color-success: #4f6b38;
   --color-danger: #a6513a;
   --radius: 14px;
@@ -123,7 +123,7 @@ label {
 }
 
 .btn:hover {
-  transform: translateY(-2px);
+  transform: translateY(-2px) scale(1.03);
   box-shadow: var(--shadow-lg);
 }
 
@@ -186,7 +186,8 @@ label {
 }
 
 .card {
-  background: var(--color-surface);
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(12px);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
@@ -215,7 +216,7 @@ label {
   align-items: center;
   justify-content: space-between;
   padding: 1rem 1.5rem;
-  background: var(--color-surface-alt);
+  background: linear-gradient(90deg, var(--color-primary), var(--color-secondary));
   border-bottom: 1px solid var(--color-border);
   position: sticky;
   top: 0;
@@ -342,8 +343,7 @@ td {
   padding: 3rem 1rem 2rem;
   border-radius: var(--radius);
   overflow: hidden;
-  background: radial-gradient(circle at 20% 20%, var(--color-surface-alt), transparent 60%),
-    radial-gradient(circle at 80% 0%, var(--color-secondary) 0%, transparent 45%), var(--color-bg);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
 }
 
 .hero h1 {
