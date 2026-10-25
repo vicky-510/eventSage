@@ -1,20 +1,25 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
+import { SparkleIcon, EditIcon, RefreshIcon, UsersIcon } from '../components/icons.jsx';
 
 const FEATURES = [
   {
+    icon: SparkleIcon,
     title: 'AI-generated plan',
     body: 'Describe your event once and get a complete budget breakdown, timeline, and vendor checklist in seconds.',
   },
   {
+    icon: EditIcon,
     title: 'Editable, not locked-in',
-    body: 'Every budget line, checklist task, and timeline item stays fully editable — the AI gives you a starting point, not a rulebook.',
+    body: 'Every budget line, checklist task, and timeline item stays fully editable — AI gives you a starting point, not a rulebook.',
   },
   {
+    icon: RefreshIcon,
     title: 'Re-plan on the fly',
-    body: "Something changed? Describe it in plain English and the budget reallocates itself across categories.",
+    body: 'Something changed? Describe it in plain English and the budget reallocates itself across categories.',
   },
   {
+    icon: UsersIcon,
     title: 'Guest RSVP, built in',
     body: 'Every event gets a shareable link where guests can RSVP and leave dietary notes — no account needed.',
   },
@@ -25,15 +30,13 @@ export default function Landing() {
 
   return (
     <div className="container">
-      <section style={{ textAlign: 'center', padding: '2rem 0 1rem' }}>
-        <h1 style={{ fontSize: '2.2rem', color: 'var(--color-primary-dark)', marginBottom: '0.5rem' }}>
-          Plan your celebration, powered by AI
-        </h1>
-        <p style={{ fontSize: '1.1rem', maxWidth: 560, margin: '0 auto 1.5rem' }}>
+      <section className="hero">
+        <h1>Plan your celebration, powered by AI</h1>
+        <p>
           EventSage turns a short description of your wedding, birthday, or community event into a full plan:
-          budget, timeline, vendor checklist, and ideas — ready to edit and share.
+          budget, timeline, vendor checklist, and ideas — ready to edit, export, and share.
         </p>
-        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
           {user ? (
             <Link className="btn" to="/dashboard">
               Go to dashboard
@@ -51,14 +54,17 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="event-list" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', display: 'grid' }}>
-        {FEATURES.map((f) => (
-          <div className="card" key={f.title}>
-            <h2 style={{ marginTop: 0, fontSize: '1.1rem', color: 'var(--color-primary-dark)' }}>{f.title}</h2>
-            <p style={{ margin: 0 }}>{f.body}</p>
+      <div className="event-list">
+        {FEATURES.map(({ icon: Icon, title, body }) => (
+          <div className="card hoverable" key={title}>
+            <span className="feature-icon">
+              <Icon aria-hidden="true" />
+            </span>
+            <h2 style={{ marginTop: 0, fontSize: '1.1rem', color: 'var(--color-primary-dark)' }}>{title}</h2>
+            <p style={{ margin: 0 }}>{body}</p>
           </div>
         ))}
-      </section>
+      </div>
     </div>
   );
 }

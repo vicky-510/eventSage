@@ -1,8 +1,11 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
+import { useTheme } from '../theme/useTheme.js';
+import { SparkleIcon, SunIcon, MoonIcon } from './icons.jsx';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   async function handleLogout() {
@@ -13,9 +16,18 @@ export default function Navbar() {
   return (
     <nav className="navbar">
       <Link to="/" className="brand">
+        <SparkleIcon aria-hidden="true" />
         EventSage
       </Link>
       <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+        <button
+          type="button"
+          className="btn icon-btn"
+          onClick={toggleTheme}
+          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+        </button>
         {user ? (
           <>
             <Link to="/dashboard">Dashboard</Link>

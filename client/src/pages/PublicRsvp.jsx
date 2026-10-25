@@ -1,6 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import confetti from 'canvas-confetti';
 import { api } from '../api/client.js';
+
+function celebrate() {
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (prefersReducedMotion) return;
+  confetti({
+    particleCount: 120,
+    spread: 80,
+    origin: { y: 0.6 },
+    colors: ['#8b5e34', '#c9a876', '#6b4423', '#f3e6d3'],
+  });
+}
 
 export default function PublicRsvp() {
   const { publicId } = useParams();
@@ -26,6 +38,7 @@ export default function PublicRsvp() {
     try {
       await api.submitRsvp(publicId, { name, attending: attending === 'yes', dietaryNotes });
       setSubmitted(true);
+      if (attending === 'yes') celebrate();
     } catch (err) {
       setError(err.message);
     } finally {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api/client.js';
+import { exportPlanPdf } from '../utils/exportPlanPdf.js';
 
 export default function EventDetail() {
   const { id } = useParams();
@@ -87,6 +88,11 @@ export default function EventDetail() {
           </label>
           <input id="share-link" readOnly value={shareUrl} onFocus={(e) => e.target.select()} style={{ width: 320 }} />
         </div>
+        {hasPlan && (
+          <button className="btn secondary" onClick={() => exportPlanPdf(event)}>
+            Export PDF
+          </button>
+        )}
         {modelUsed && <span className="badge">generated with {modelUsed}</span>}
       </div>
 
@@ -99,22 +105,23 @@ export default function EventDetail() {
       {hasPlan && (
         <>
           <h2 className="section-title">Budget</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Category</th>
-                <th>Allocated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {event.plan.budget.map((b, i) => (
-                <tr key={i}>
-                  <td>{b.category}</td>
-                  <td>₹{Number(b.amount).toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {(() => {
+            const maxAmount = Math.max(...event.plan.budget.map((b) => Number(b.amount) || 0), 1);
+            return event.plan.budget.map((b, i) => {
+              const pct = Math.round((Number(b.amount) / maxAmount) * 100);
+              return (
+                <div className="budget-row" key={i}>
+                  <div className="budget-row-header">
+                    <span>{b.category}</span>
+                    <span>₹{Number(b.amount).toLocaleString()}</span>
+                  </div>
+                  <div className="progress-track">
+                    <div className="progress-fill" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            });
+          })()}
 
           <form onSubmit={handleReplan} className="field" style={{ marginTop: '1rem' }}>
             <label htmlFor="replan">Something changed? Describe it and re-plan the budget</label>
