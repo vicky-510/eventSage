@@ -961,28 +961,6 @@ td {
   font-size: 0.9rem;
 }
 
-.guest-section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.guest-section-header .section-title {
-  margin-bottom: 0;
-}
-
-.guest-select-all {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.85rem;
-  color: var(--color-text);
-  opacity: 0.85;
-  cursor: pointer;
-}
-
 .guest-table-wrap {
   margin-top: 1rem;
   overflow-x: auto;

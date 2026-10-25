@@ -298,17 +298,9 @@ export default function EventGuests() {
         const allSelected = isInvitedSection && sectionGuests.length > 0 && sectionGuests.every((g) => selectedIds.has(g._id));
         return (
         <div key={section.key}>
-          <div className="guest-section-header">
-            <h2 className="section-title">
-              {section.title} ({sectionGuests.length}{q ? ` of ${grouped[section.key].length}` : ''})
-            </h2>
-            {isInvitedSection && sectionGuests.length > 0 && (
-              <label className="guest-select-all">
-                <input type="checkbox" checked={allSelected} onChange={() => toggleSelectAllInvited(sectionGuests)} />
-                Select all
-              </label>
-            )}
-          </div>
+          <h2 className="section-title">
+            {section.title} ({sectionGuests.length}{q ? ` of ${grouped[section.key].length}` : ''})
+          </h2>
           {sectionGuests.length === 0 ? (
             <p className="hint-text">{q ? 'No matches.' : section.emptyText}</p>
           ) : (
@@ -316,7 +308,16 @@ export default function EventGuests() {
               <table className="guest-table">
                 <thead>
                   <tr>
-                    {isInvitedSection && <th className="guest-table-check"></th>}
+                    {isInvitedSection && (
+                      <th className="guest-table-check">
+                        <input
+                          type="checkbox"
+                          checked={allSelected}
+                          onChange={() => toggleSelectAllInvited(sectionGuests)}
+                          aria-label="Select all awaiting response"
+                        />
+                      </th>
+                    )}
                     <th>Guest</th>
                     <th className="guest-table-actions-head"></th>
                   </tr>
