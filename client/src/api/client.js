@@ -63,6 +63,9 @@ export const api = {
   generatePlan: (id) => apiRequest(`/events/${id}/generate-plan`, { method: 'POST' }),
   replan: (id, changeDescription) =>
     apiRequest(`/events/${id}/replan`, { method: 'POST', body: JSON.stringify({ changeDescription }) }),
+  intakeChat: (messages) => apiRequest('/events/intake-chat', { method: 'POST', body: JSON.stringify({ messages }) }),
+  chatWithEvent: (id, message) =>
+    apiRequest(`/events/${id}/chat`, { method: 'POST', body: JSON.stringify({ message }) }),
 
   getPublicEvent: (publicId) => apiRequest(`/public/events/${publicId}`),
   submitRsvp: (publicId, payload) =>

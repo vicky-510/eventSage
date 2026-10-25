@@ -75,12 +75,14 @@ POST   /auth/logout
 
 GET    /events              (list own events)
 POST   /events              (create)
+POST   /events/intake-chat  (conversational intake: chat turn -> next question or a structured brief)
 GET    /events/:id          (own event, full detail)
 PATCH  /events/:id          (edit plan/budget/checklist)
 DELETE /events/:id
 
-POST   /ai/generate-plan    (body: event brief -> returns structured plan)
-POST   /ai/replan           (body: event id + change description -> updated budget)
+POST   /events/:id/generate-plan  (-> budget, timeline, checklist, ideas, moodboard, insights)
+POST   /events/:id/replan         (body: change description -> updated budget)
+POST   /events/:id/chat           (body: message -> assistant reply, uses event as context, history persisted)
 
 GET    /public/events/:publicId   (guest-facing read-only view)
 POST   /public/events/:publicId/rsvp

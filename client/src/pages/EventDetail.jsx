@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { exportPlanPdf } from '../utils/exportPlanPdf.js';
+import AssistantChat from '../components/AssistantChat.jsx';
+
+const SEVERITY_LABEL = { critical: 'Critical', warning: 'Warning', info: 'Note' };
 
 export default function EventDetail() {
   const { id } = useParams();
@@ -104,6 +107,45 @@ export default function EventDetail() {
 
       {hasPlan && (
         <>
+          {event.plan.insights?.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1.5rem' }}>
+              {event.plan.insights.map((insight, i) => (
+                <div
+                  key={i}
+                  className={`insight-chip insight-${insight.severity}`}
+                  role={insight.severity === 'critical' ? 'alert' : undefined}
+                >
+                  <strong>{SEVERITY_LABEL[insight.severity] || 'Note'}:</strong> {insight.message}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {event.plan.moodboard && (
+            <div className="card hoverable" style={{ marginTop: '1.5rem' }}>
+              <h2 style={{ marginTop: 0, fontSize: '1.2rem', color: 'var(--color-primary-dark)' }}>
+                {event.plan.moodboard.themeName}
+              </h2>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                {event.plan.moodboard.colors.map((c) => (
+                  <span
+                    key={c}
+                    title={c}
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: '50%',
+                      background: c,
+                      border: '2px solid var(--color-surface)',
+                      boxShadow: '0 0 0 1px var(--color-border)',
+                    }}
+                  />
+                ))}
+              </div>
+              <p style={{ margin: 0 }}>{event.plan.moodboard.description}</p>
+            </div>
+          )}
+
           <h2 className="section-title">Budget</h2>
           {(() => {
             const maxAmount = Math.max(...event.plan.budget.map((b) => Number(b.amount) || 0), 1);
@@ -173,6 +215,8 @@ export default function EventDetail() {
           </ul>
         </>
       )}
+
+      <AssistantChat eventId={event._id} initialMessages={event.assistantChat || []} />
     </div>
   );
 }

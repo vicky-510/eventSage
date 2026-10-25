@@ -43,8 +43,11 @@ EventSage turns a short event brief (occasion, date, location, guest count, budg
 
 ### Core Features
 - Email/password signup & login with secure session handling.
-- Event creation (occasion, date, location, guest count, budget, vibe).
+- **Conversational AI intake** — instead of a static form, a chat-style assistant (`POST /events/intake-chat`) asks one follow-up question at a time until it has enough to propose a structured event brief, which the user reviews/edits before the event is created.
 - AI-generated plan: budget breakdown, timeline, vendor checklist, theme ideas.
+- **AI moodboard** — a theme name, 4-color palette, and short style description generated alongside the plan and rendered as swatches.
+- **Smart budget insights** — the model flags risky allocations (e.g. catering too low for the guest count, a missing obvious category) as inline severity-coded chips (info/warning/critical).
+- **"Ask EventSage" chat assistant** — a persistent per-event chat panel (`POST /events/:id/chat`) that answers open-ended questions using that event's actual budget/timeline/checklist as context, with history persisted to MongoDB.
 - Editable budget and checklist (status cycle: todo → booked → paid), persisted to MongoDB.
 - AI re-plan: describe a real-world change, get the budget reallocated.
 - Dashboard with event list, stat cards, countdown, and animated budget-used progress bars.
@@ -52,6 +55,7 @@ EventSage turns a short event brief (occasion, date, location, guest count, budg
 - **Export plan as PDF** — budget, timeline, checklist, and ideas as a downloadable document, with `jspdf` lazy-loaded so it never bloats the initial page load.
 - **Confetti celebration** on a "yes" RSVP (skips the animation when the visitor has `prefers-reduced-motion` set).
 - **Dark mode** with a toggle in the navbar, persisted per browser, palette re-checked against WCAG AA.
+- All AI endpoints are additionally rate-limited (`aiLimiter`, 30 req/15min) on top of the site-wide limits, since they're the most expensive calls the API makes.
 
 ### Folder Structure
 ```

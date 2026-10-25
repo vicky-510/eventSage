@@ -19,36 +19,46 @@ export function extractJson(text) {
   return JSON.parse(raw.trim());
 }
 
-async function callModel(modelName, prompt) {
+async function callModelRaw(modelName, prompt) {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({ model: modelName });
   const result = await model.generateContent(prompt);
-  const text = result.response.text();
-  return extractJson(text);
+  return result.response.text();
 }
 
 /**
  * Walks a chain of Gemini models in order (configurable via GEMINI_MODEL_CHAIN,
  * a comma-separated list) so a single model's outage, deprecation, or quota
- * limit doesn't take down plan generation. Stops at the first model that
- * returns a response that parses as JSON.
+ * limit doesn't take down generation. Stops at the first model whose output
+ * is accepted by `parse`.
  */
-export async function generateStructuredPlan(prompt) {
+async function walkModelChain(prompt, parse, failureMessage) {
   const chain = getModelChain();
   const errors = [];
 
   for (const modelName of chain) {
     try {
-      const data = await callModel(modelName, prompt);
+      const text = await callModelRaw(modelName, prompt);
+      const data = parse(text);
       return { data, modelUsed: modelName };
     } catch (err) {
       errors.push({ model: modelName, message: err.message });
     }
   }
 
-  const err = new Error(`AI plan generation failed on all models: ${chain.join(', ')}`);
+  const err = new Error(`${failureMessage}: ${chain.join(', ')}`);
   err.status = 502;
-  err.publicMessage = 'Could not generate plan right now, please try again shortly';
+  err.publicMessage = 'AI is unavailable right now, please try again shortly';
   err.cause = errors;
   throw err;
+}
+
+/** For prompts that must return a strict JSON object. */
+export async function generateStructuredPlan(prompt) {
+  return walkModelChain(prompt, extractJson, 'AI plan generation failed on all models');
+}
+
+/** For free-form conversational replies (chat assistant, intake). */
+export async function generateText(prompt) {
+  return walkModelChain(prompt, (text) => text.trim(), 'AI text generation failed on all models');
 }
