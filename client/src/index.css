@@ -443,13 +443,7 @@ td {
   gap: 1rem;
   justify-content: center;
   flex-wrap: wrap;
-}
-
-.hero-trust {
-  margin-top: 2rem;
-  font-size: 0.85rem;
-  opacity: 0.7;
-  letter-spacing: 0.03em;
+  margin-bottom: 1.5rem;
 }
 
 /* Generic page sections for landing */

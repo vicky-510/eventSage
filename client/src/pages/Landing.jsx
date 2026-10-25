@@ -115,7 +115,6 @@ export default function Landing() {
             </>
           )}
         </div>
-        <p className="hero-trust">No credit card needed · Free AI-generated plans · Share with guests instantly</p>
       </section>
 
       <div className="stat-row" style={{ marginTop: '2.5rem' }}>
