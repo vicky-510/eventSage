@@ -18,6 +18,7 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
+      - run: npm run lint
       - run: npm test
 
   client-tests:
@@ -31,5 +32,6 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
+      - run: npm run lint
       - run: npm test
       - run: npm run build

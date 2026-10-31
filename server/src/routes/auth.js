@@ -1,19 +1,13 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import rateLimit from 'express-rate-limit';
-import { body, validationResult } from 'express-validator';
+import { body } from 'express-validator';
 import User from '../models/User.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken, hashToken } from '../utils/tokens.js';
+import { validate } from '../middleware/validate.js';
+import { authLimiter } from '../middleware/rateLimiters.js';
+import { BCRYPT_ROUNDS, REFRESH_TOKEN_MAX_AGE_MS } from '../utils/constants.js';
 
 const router = Router();
-
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many attempts, please try again later' },
-});
 
 const REFRESH_COOKIE_NAME = 'refreshToken';
 const isProd = process.env.NODE_ENV === 'production';
@@ -25,17 +19,9 @@ const REFRESH_COOKIE_OPTIONS = {
   // either, but 'lax' is enough since dev traffic is same-site over HTTP.
   secure: isProd,
   sameSite: isProd ? 'none' : 'lax',
-  maxAge: 7 * 24 * 60 * 60 * 1000,
+  maxAge: REFRESH_TOKEN_MAX_AGE_MS,
   path: '/auth',
 };
-
-function validate(req, res, next) {
-  const result = validationResult(req);
-  if (!result.isEmpty()) {
-    return res.status(400).json({ error: result.array()[0].msg });
-  }
-  next();
-}
 
 router.post(
   '/signup',
@@ -58,7 +44,7 @@ router.post(
       if (existing) {
         return res.status(409).json({ error: 'An account with this email already exists' });
       }
-      const passwordHash = await bcrypt.hash(password, 12);
+      const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
       const user = await User.create({ email, passwordHash });
 
       const accessToken = signAccessToken(user._id.toString());

@@ -1,34 +1,29 @@
 import { Router } from 'express';
-import { body, validationResult } from 'express-validator';
+import { body } from 'express-validator';
 import Event from '../models/Event.js';
 import Guest from '../models/Guest.js';
+import { validate } from '../middleware/validate.js';
 
 const router = Router();
 
-function validate(req, res, next) {
-  const result = validationResult(req);
-  if (!result.isEmpty()) {
-    return res.status(400).json({ error: result.array()[0].msg });
-  }
-  next();
-}
-
 router.get('/events/:publicId', async (req, res, next) => {
   try {
-    const event = await Event.findOne({ publicId: req.params.publicId }).select(
-      'title occasionType date location vibe publicId'
-    );
+    const event = await Event.findOne({ publicId: req.params.publicId })
+      .select('title occasionType date location vibe publicId')
+      .lean();
     if (!event) return res.status(404).json({ error: 'Event not found' });
 
     let invite = null;
     if (req.query.g) {
-      const guest = await Guest.findOne({ eventId: event._id, inviteToken: req.query.g });
+      const guest = await Guest.findOne({ eventId: event._id, inviteToken: req.query.g })
+        .select('name email status')
+        .lean();
       if (guest) {
         invite = { name: guest.name, email: guest.email, status: guest.status };
       }
     }
 
-    res.json({ ...event.toObject(), invite });
+    res.json({ ...event, invite });
   } catch (err) {
     next(err);
   }

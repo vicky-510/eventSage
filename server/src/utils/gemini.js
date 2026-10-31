@@ -1,6 +1,11 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GEMINI_MODEL_TIMEOUT_MS } from './constants.js';
 
 const DEFAULT_MODEL_CHAIN = ['gemini-3.1-pro', 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
+
+// Built once at module load rather than per-call — the client itself is
+// stateless configuration, there's no reason to re-construct it on every request.
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 export function getModelChain() {
   if (process.env.GEMINI_MODEL_CHAIN) {
@@ -19,10 +24,15 @@ export function extractJson(text) {
   return JSON.parse(raw.trim());
 }
 
+function timeout(ms, modelName) {
+  return new Promise((_, reject) =>
+    setTimeout(() => reject(new Error(`${modelName} timed out after ${ms}ms`)), ms)
+  );
+}
+
 async function callModelRaw(modelName, prompt) {
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({ model: modelName });
-  const result = await model.generateContent(prompt);
+  const result = await Promise.race([model.generateContent(prompt), timeout(GEMINI_MODEL_TIMEOUT_MS, modelName)]);
   return result.response.text();
 }
 

@@ -46,7 +46,9 @@ export default function EventDetail() {
 
   useEffect(() => {
     loadGuests();
-    const interval = setInterval(() => loadGuests({ detectNew: true }), 15000);
+    const interval = setInterval(() => {
+      if (!document.hidden) loadGuests({ detectNew: true });
+    }, 15000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);

@@ -1,48 +1,36 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import rateLimit from 'express-rate-limit';
-import { body, validationResult } from 'express-validator';
+import { body } from 'express-validator';
 import Event from '../models/Event.js';
 import Guest from '../models/Guest.js';
 import { requireAuth } from '../middleware/auth.js';
+import { validate } from '../middleware/validate.js';
+import { aiLimiter } from '../middleware/rateLimiters.js';
 import { generateStructuredPlan, generateText } from '../utils/gemini.js';
 import { buildPlanPrompt, buildReplanPrompt, buildIntakePrompt, buildAssistantChatPrompt } from '../utils/prompts.js';
 import { sanitizePlan, sanitizeIntakeBrief } from '../utils/validatePlan.js';
+import { MAX_CHAT_HISTORY, MAX_MESSAGE_LENGTH, DEFAULT_EVENTS_PAGE_SIZE, MAX_EVENTS_PAGE_SIZE } from '../utils/constants.js';
 
 const router = Router();
 router.use(requireAuth);
-
-// AI calls are the most expensive thing this API does, so they get their own,
-// tighter limit on top of whatever's in front of the whole app.
-const aiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 30,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many AI requests, please slow down and try again shortly' },
-});
-
-const MAX_CHAT_HISTORY = 20;
-
-function validate(req, res, next) {
-  const result = validationResult(req);
-  if (!result.isEmpty()) {
-    return res.status(400).json({ error: result.array()[0].msg });
-  }
-  next();
-}
 
 function sanitizeHistory(raw) {
   if (!Array.isArray(raw)) return [];
   return raw
     .filter((m) => (m?.role === 'user' || m?.role === 'assistant') && typeof m?.content === 'string')
     .slice(-MAX_CHAT_HISTORY)
-    .map((m) => ({ role: m.role, content: m.content.slice(0, 2000) }));
+    .map((m) => ({ role: m.role, content: m.content.slice(0, MAX_MESSAGE_LENGTH) }));
 }
 
 router.get('/', async (req, res, next) => {
   try {
-    const events = await Event.find({ ownerId: req.userId }).sort({ createdAt: -1 });
+    const limit = Math.min(Number(req.query.limit) || DEFAULT_EVENTS_PAGE_SIZE, MAX_EVENTS_PAGE_SIZE);
+    const skip = Math.max(Number(req.query.skip) || 0, 0);
+    const events = await Event.find({ ownerId: req.userId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
     res.json(events);
   } catch (err) {
     next(err);
@@ -87,10 +75,10 @@ router.post('/intake-chat', aiLimiter, [body('messages').isArray()], validate, a
       if (!brief) {
         return res.json({ done: false, reply: "Sorry, I didn't catch that — could you tell me a bit more?", modelUsed });
       }
-      return res.json({ done: true, reply: String(data.reply || 'Got it!').slice(0, 2000), brief, modelUsed });
+      return res.json({ done: true, reply: String(data.reply || 'Got it!').slice(0, MAX_MESSAGE_LENGTH), brief, modelUsed });
     }
 
-    res.json({ done: false, reply: String(data?.reply || "Could you tell me more about the event?").slice(0, 2000), modelUsed });
+    res.json({ done: false, reply: String(data?.reply || "Could you tell me more about the event?").slice(0, MAX_MESSAGE_LENGTH), modelUsed });
   } catch (err) {
     next(err);
   }
@@ -192,7 +180,7 @@ router.get('/:id/guests', async (req, res, next) => {
   try {
     const event = await findOwnedEvent(req, res);
     if (!event) return;
-    const guests = await Guest.find({ eventId: event._id }).sort({ respondedAt: -1, createdAt: -1 });
+    const guests = await Guest.find({ eventId: event._id }).sort({ respondedAt: -1, createdAt: -1 }).lean();
     res.json(guests);
   } catch (err) {
     next(err);
@@ -300,7 +288,7 @@ router.delete('/:id/guests/:guestId', async (req, res, next) => {
 router.post(
   '/:id/chat',
   aiLimiter,
-  [body('message').trim().notEmpty().isLength({ max: 2000 }).withMessage('message is required (max 2000 chars)')],
+  [body('message').trim().notEmpty().isLength({ max: MAX_MESSAGE_LENGTH }).withMessage(`message is required (max ${MAX_MESSAGE_LENGTH} chars)`)],
   validate,
   async (req, res, next) => {
     try {
