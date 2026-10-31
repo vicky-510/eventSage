@@ -98,6 +98,7 @@ export default function AssistantChat({ eventId, initialMessages }) {
             </label>
             <input
               id="assistant-input"
+              maxLength={2000}
               placeholder="Ask a question about this event…"
               value={input}
               onChange={(e) => setInput(e.target.value)}

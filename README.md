@@ -27,21 +27,45 @@ EventSage turns a short event brief (occasion, date, location, guest count, budg
 - **Database**: MongoDB Atlas via Mongoose (`User`, `Event`, `Guest` collections).
 - **AI**: Google Gemini API (`@google/generative-ai`), primary/fallback model wrapper described above.
 
-### Authentication (security-first)
-- Passwords hashed with **bcrypt** (cost factor 12) — never stored or logged in plaintext.
-- **Short-lived access JWT** (15 min) returned to the client and held in memory only (never `localStorage`), to limit exposure if the client is compromised by XSS.
-- **Refresh token** (7 days) stored as an **httpOnly, Secure, SameSite=Strict** cookie, with its hash stored server-side for revocation; rotated on every refresh.
-- `/auth/login` and `/auth/signup` are rate-limited (`express-rate-limit`) against brute force.
-- All inputs validated and sanitized server-side with `express-validator`.
-- `helmet` for secure HTTP headers; CORS locked to the deployed frontend origin.
-- `express-mongo-sanitize` strips Mongo query operators (`$gt`, `$where`, etc.) from request bodies/params to prevent NoSQL injection.
-- Login errors are intentionally generic ("Invalid email or password") for both a wrong password and an unknown email, to avoid leaking which emails are registered.
+### Security
+**Authentication**
+- Passwords hashed with **bcrypt** (cost 12), length-capped to stop oversized-payload hashing; `passwordHash` and `refreshTokenHash` are `select: false` in the schema, so they never leave the DB unless a route opts in.
+- **Short-lived access JWT** (15 min) held in memory only (never `localStorage`), limiting exposure to XSS.
+- **Refresh token** (7 days) in an **httpOnly, Secure** cookie scoped to `/auth` (`SameSite=None` in production because the frontend and API are on different sites). Only its SHA-256 hash is stored, and it is **rotated atomically** on every use, so a replayed or stolen-and-reused token is rejected.
+- JWT verification pins the algorithm (`HS256`), rejecting `alg: none` and algorithm-confusion tokens.
+- Login errors are generic for both an unknown email and a wrong password, so the response doesn't reveal which emails are registered.
+
+**Request hardening**
+- Every route validates its input with `express-validator` (types, lengths, ObjectId/hex formats). Plan edits from the client go through the same sanitizer as AI output, so neither can store malformed data.
+- Ownership checks on every event/guest route; another user's event returns 404, so ids can't be probed.
+- Layered rate limits: site-wide (300/15 min), auth (10/15 min), AI (30/15 min) and public RSVP writes (20/15 min), with `trust proxy` set so limits key on the real client IP behind Vercel.
+- `helmet` with a strict `default-src 'none'` CSP for the JSON API; CORS restricted to the configured frontend origins.
+- `express-mongo-sanitize` strips `$`-operators to prevent NoSQL injection; JSON bodies are capped at 100 KB.
+- A central error handler only returns client-safe messages; stack traces and DB errors never reach the client.
+- Required environment variables are checked at startup, so a misconfigured deploy fails immediately with a clear error.
+
+### Efficiency
+- **Indexes matched to real queries:** `{ownerId, createdAt}` serves the dashboard list with its sort; `{eventId, respondedAt, createdAt}` serves the guest list.
+- **`.lean()` and field projections on read paths:** the dashboard omits chat transcripts, and guest routes load only the event's `_id` for their ownership check.
+- **Paginated** event list (`?limit=&skip=`, max 100).
+- **Atomic single-query updates** (`findOneAndUpdate`) for RSVP, mark-sent and token rotation, replacing read-modify-write round trips.
+- `compression` on API responses; short-lived public `Cache-Control` on guest-facing event pages (personalised invite responses are `no-store`).
+- **Gemini:** one shared client, plus a per-model timeout in the fallback chain, so a slow model can't stall a request.
+- **Serverless DB connection** is created once and shared by concurrent cold-start requests.
+- **Frontend:**
+  - Route-level code splitting with `React.lazy`, so each page is its own chunk.
+  - `jspdf` loads only when a PDF is exported.
+  - Memoized derived data.
+  - Guest-list polling pauses while the tab is hidden.
 
 ### Accessibility
 - Semantic landmarks (`<nav>`, `<main>`) and a visible skip-to-content link for keyboard/screen-reader users.
-- Every form input has an associated `<label>`; errors are announced via `role="alert"`.
-- All interactive controls (checklist status, RSVP, nav) are plain `<button>`/`<a>` elements, fully keyboard-operable with visible focus outlines.
-- Palette checked against WCAG AA: all text/background and button-label color pairs meet or exceed 4.5:1 contrast.
+- Each page sets its own document title, and focus moves to `<main>` on navigation so screen readers announce the change.
+- Every form input has an associated `<label>` and a `maxLength` matching the server's limit; errors are announced via `role="alert"`, status updates via `role="status"`.
+- Guest tables have captions and scoped headers, and action buttons have guest-specific labels ("Remove Priya"). Decorative icons and emoji are hidden from assistive tech.
+- All interactive controls are native `<button>`/`<a>` elements, fully keyboard-operable with visible focus outlines.
+- Animations respect `prefers-reduced-motion`.
+- Palette checked against WCAG AA (≥ 4.5:1) in both light and dark mode.
 
 ### Core Features
 - Email/password signup & login with secure session handling.
@@ -65,11 +89,16 @@ eventPlanner/
   client/        React + Vite frontend (Netlify)
   server/        Express backend (Vercel serverless)
     src/
-      models/      Mongoose schemas
-      routes/      auth, events, public (RSVP)
-      middleware/  JWT auth guard, error handling
-      utils/       Gemini wrapper, prompts, plan sanitizer, JWT helpers
+      models/      Mongoose schemas + indexes
+      routes/      auth, events (CRUD), ai, guests, public (RSVP)
+      middleware/  JWT auth guard, ownership checks, validation, rate limiters, error handling
+      utils/       Gemini wrapper, prompts, plan sanitizer, JWT helpers, constants
     tests/         Jest + Supertest + mongodb-memory-server
+  client/src/
+    pages/         one lazily-loaded chunk per route
+    components/    shared UI (guests/, charts/)
+    hooks/         useGuests, usePageTitle
+    utils/         pure, unit-tested helpers
   PLAN.md          Full design/build plan
 ```
 
@@ -94,23 +123,54 @@ npm run dev
 
 ## Testing
 
-**Backend** (`server/tests/`, Jest + Supertest + mongodb-memory-server):
-- Signup: success, duplicate email rejected, weak password rejected.
-- Login: success issues tokens, wrong password / unknown email both get the same generic error.
-- Protected routes reject requests with no token or an invalid token.
-- Event creation flow end-to-end with a real JWT.
-- AI plan sanitization: malformed/partial AI JSON is cleaned rather than trusted.
-- Gemini fallback chain: succeeds on the first model, falls through on failures, and fails safely when every model is down.
+**Backend**: 91 tests in `server/tests/`, using Jest, Supertest and mongodb-memory-server, so no real database or Gemini key is needed. Line coverage is about 99% (`npm run test:coverage`). The suite covers:
+- **Auth & sessions:**
+  - Signup and login validation.
+  - Generic login errors.
+  - Refresh-token rotation, with replay rejected.
+  - Logout revokes the session.
+  - Secrets are excluded from queries.
+  - Login is rate-limited.
+- **Events:**
+  - Validation.
+  - Pagination and projection.
+  - Isolation between users.
+  - Malformed ids return 400.
+  - Plan-patch merging and sanitization.
+  - Deleting an event also deletes its guests.
+- **Guests:**
+  - Personal and bulk invites, with dedupe and length checks.
+  - Mark-sent happens at most once.
+  - Cross-event and cross-user access is blocked.
+- **Public RSVP:**
+  - Only guest-safe fields are exposed.
+  - Cache headers are correct.
+  - RSVPing from an invite link updates that guest; RSVPing from the open link creates a new one.
+  - Submissions are rate-limited.
+- **AI routes** (Gemini mocked):
+  - Plan generation, re-plan, chat history capping and the intake brief.
+  - A safe 502 when every model fails.
+- **Hardening:**
+  - Security headers and the CORS allow-list.
+  - Malformed JSON returns 400 and oversized bodies return 413.
+  - NoSQL-injection payloads are rejected.
+  - JWTs signed with a different algorithm are rejected.
+  - The error handler never leaks internals.
+- **Utilities:** plan sanitizer, Gemini fallback chain, env checks.
 
-Run with `npm test` inside `server/`.
+**Frontend**: 42 tests in `client/src/**/*.test.{js,jsx}`, using Vitest and React Testing Library. They cover:
+- The API client's single-flight token refresh.
+- Protected-route redirects.
+- Signup and Login forms.
+- The public RSVP flow.
+- Guest grouping and filtering logic.
+- The `useGuests` and `usePageTitle` hooks.
+- Guest table rendering.
+- Date utilities.
 
-**Frontend** (`client/src/**/*.test.{js,jsx}`, Vitest + React Testing Library):
-- `daysUntil` date-math utility (future/past/missing date).
-- Login page renders accessible, labeled form fields and a reachable submit button.
+Run with `npm test` inside `server/` or `client/`.
 
-Run with `npm test` inside `client/`.
-
-**CI**: `.github/workflows/ci.yml` runs both suites (and the frontend build) on every push/PR to `main`.
+**CI**: `.github/workflows/ci.yml` runs lint, both test suites and the frontend build on every push and PR to `main`.
 
 ## Assumptions
 

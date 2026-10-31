@@ -1,4 +1,12 @@
-import { sanitizePlan, sanitizeBudget, sanitizeMoodboard, sanitizeInsights, sanitizeIntakeBrief } from '../src/utils/validatePlan.js';
+import {
+  sanitizePlan,
+  sanitizePlanPatch,
+  sanitizeBudget,
+  sanitizeMoodboard,
+  sanitizeInsights,
+  sanitizeIntakeBrief,
+} from '../src/utils/validatePlan.js';
+import { MAX_PLAN_LIST_ITEMS } from '../src/utils/constants.js';
 
 describe('sanitizePlan', () => {
   it('keeps only well-formed entries and drops malformed ones', () => {
@@ -82,5 +90,51 @@ describe('sanitizeIntakeBrief', () => {
 
   it('rejects a brief with no title', () => {
     expect(sanitizeIntakeBrief({ occasionType: 'birthday' })).toBeNull();
+  });
+});
+
+describe('sanitizePlanPatch', () => {
+  it('returns only the keys that were sent, so unedited parts of the plan survive a merge', () => {
+    const patch = sanitizePlanPatch({ checklist: [{ task: 'Book DJ', status: 'booked' }] });
+    expect(Object.keys(patch)).toEqual(['checklist']);
+    expect(patch.checklist[0]).toEqual(expect.objectContaining({ task: 'Book DJ', status: 'booked' }));
+  });
+
+  it('keeps user-tracked spending but drops negative or non-numeric values', () => {
+    const patch = sanitizePlanPatch({
+      budget: [
+        { category: 'Venue', amount: 1000, spent: 400 },
+        { category: 'Decor', amount: 500, spent: -10 },
+        { category: 'Food', amount: -1 },
+      ],
+    });
+    expect(patch.budget).toEqual([
+      { category: 'Venue', amount: 1000, spent: 400 },
+      { category: 'Decor', amount: 500, spent: 0 },
+    ]);
+  });
+
+  it('caps list sizes and string lengths', () => {
+    const ideas = Array.from({ length: MAX_PLAN_LIST_ITEMS + 50 }, () => 'y'.repeat(5000));
+    const patch = sanitizePlanPatch({ ideas });
+    expect(patch.ideas).toHaveLength(MAX_PLAN_LIST_ITEMS);
+    expect(patch.ideas[0].length).toBeLessThan(5000);
+  });
+
+  it('returns an empty patch for non-object input', () => {
+    expect(sanitizePlanPatch('nope')).toEqual({});
+    expect(sanitizePlanPatch(null)).toEqual({});
+  });
+});
+
+describe('sanitizePlan with AI output', () => {
+  it('always resets spending to zero, whatever the model claims', () => {
+    const plan = sanitizePlan({ budget: [{ category: 'Venue', amount: 1000, spent: 999 }] });
+    expect(plan.budget[0].spent).toBe(0);
+  });
+
+  it('drops checklist due dates that are not real dates', () => {
+    const plan = sanitizePlan({ checklist: [{ task: 'Book venue', dueDate: 'next tuesday-ish' }] });
+    expect(plan.checklist[0].dueDate).toBeUndefined();
   });
 });

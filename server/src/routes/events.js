@@ -1,314 +1,133 @@
 import { Router } from 'express';
-import crypto from 'crypto';
-import { body } from 'express-validator';
+import { body, query } from 'express-validator';
 import Event from '../models/Event.js';
 import Guest from '../models/Guest.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { aiLimiter } from '../middleware/rateLimiters.js';
-import { generateStructuredPlan, generateText } from '../utils/gemini.js';
-import { buildPlanPrompt, buildReplanPrompt, buildIntakePrompt, buildAssistantChatPrompt } from '../utils/prompts.js';
-import { sanitizePlan, sanitizeIntakeBrief } from '../utils/validatePlan.js';
-import { MAX_CHAT_HISTORY, MAX_MESSAGE_LENGTH, DEFAULT_EVENTS_PAGE_SIZE, MAX_EVENTS_PAGE_SIZE } from '../utils/constants.js';
+import { validateEventId, loadOwnedEvent } from '../middleware/ownership.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
+import { sanitizePlanPatch } from '../utils/validatePlan.js';
+import aiRoutes from './ai.js';
+import guestRoutes from './guests.js';
+import {
+  DEFAULT_EVENTS_PAGE_SIZE,
+  MAX_EVENTS_PAGE_SIZE,
+  MAX_TITLE_LENGTH,
+  MAX_SHORT_TEXT_LENGTH,
+  MAX_LONG_TEXT_LENGTH,
+  MAX_GUEST_COUNT,
+  MAX_BUDGET,
+} from '../utils/constants.js';
 
 const router = Router();
 router.use(requireAuth);
+router.use(aiRoutes);
+router.use('/:id/guests', guestRoutes);
 
-function sanitizeHistory(raw) {
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .filter((m) => (m?.role === 'user' || m?.role === 'assistant') && typeof m?.content === 'string')
-    .slice(-MAX_CHAT_HISTORY)
-    .map((m) => ({ role: m.role, content: m.content.slice(0, MAX_MESSAGE_LENGTH) }));
+const EDITABLE_FIELDS = ['title', 'occasionType', 'date', 'location', 'guestCount', 'budgetTotal', 'vibe'];
+
+// The dashboard only needs summary data; the chat transcript can be large and
+// is fetched with the single-event view instead.
+const LIST_PROJECTION = '-assistantChat';
+
+/**
+ * Validation for event fields, shared by create (title required) and update
+ * (everything optional). Empty optional values are allowed so a cleared form
+ * field doesn't fail validation.
+ */
+function eventFieldRules({ titleRequired }) {
+  const optional = { values: 'falsy' };
+  const title = body('title', `Title is required (max ${MAX_TITLE_LENGTH} characters)`)
+    .isString()
+    .trim()
+    .isLength({ min: 1, max: MAX_TITLE_LENGTH });
+  return [
+    titleRequired ? title : title.optional(),
+    body('occasionType').optional(optional).isString().trim().isLength({ max: MAX_SHORT_TEXT_LENGTH }),
+    body('date').optional(optional).isISO8601().withMessage('Date must be a valid date'),
+    body('location').optional(optional).isString().trim().isLength({ max: MAX_SHORT_TEXT_LENGTH }),
+    body('guestCount')
+      .optional(optional)
+      .isInt({ min: 0, max: MAX_GUEST_COUNT })
+      .withMessage('Guest count must be a whole number of 0 or more')
+      .toInt(),
+    body('budgetTotal')
+      .optional(optional)
+      .isFloat({ min: 0, max: MAX_BUDGET })
+      .withMessage('Budget must be a number of 0 or more')
+      .toFloat(),
+    body('vibe').optional(optional).isString().trim().isLength({ max: MAX_LONG_TEXT_LENGTH }),
+  ];
 }
 
-router.get('/', async (req, res, next) => {
-  try {
-    const limit = Math.min(Number(req.query.limit) || DEFAULT_EVENTS_PAGE_SIZE, MAX_EVENTS_PAGE_SIZE);
-    const skip = Math.max(Number(req.query.skip) || 0, 0);
+function pickEditableFields(source) {
+  return Object.fromEntries(EDITABLE_FIELDS.filter((key) => source[key] !== undefined).map((key) => [key, source[key]]));
+}
+
+router.get(
+  '/',
+  [
+    query('limit').optional().isInt({ min: 1, max: MAX_EVENTS_PAGE_SIZE }).toInt(),
+    query('skip').optional().isInt({ min: 0 }).toInt(),
+  ],
+  validate,
+  asyncHandler(async (req, res) => {
+    const { limit = DEFAULT_EVENTS_PAGE_SIZE, skip = 0 } = req.query;
     const events = await Event.find({ ownerId: req.userId })
+      .select(LIST_PROJECTION)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .lean();
     res.json(events);
-  } catch (err) {
-    next(err);
-  }
-});
+  })
+);
 
 router.post(
   '/',
-  [body('title').trim().notEmpty().withMessage('Title is required')],
+  eventFieldRules({ titleRequired: true }),
   validate,
-  async (req, res, next) => {
-    try {
-      const { title, occasionType, date, location, guestCount, budgetTotal, vibe } = req.body;
-      const event = await Event.create({
-        ownerId: req.userId,
-        title,
-        occasionType,
-        date,
-        location,
-        guestCount,
-        budgetTotal,
-        vibe,
-      });
-      res.status(201).json(event);
-    } catch (err) {
-      next(err);
-    }
-  }
+  asyncHandler(async (req, res) => {
+    const event = await Event.create({ ...pickEditableFields(req.body), ownerId: req.userId });
+    res.status(201).json(event);
+  })
 );
 
-// Conversational intake: no event exists yet, so this isn't scoped to :id.
-// The frontend chats here first, then POSTs the returned brief to create the
-// event once the model reports done:true.
-router.post('/intake-chat', aiLimiter, [body('messages').isArray()], validate, async (req, res, next) => {
-  try {
-    const messages = sanitizeHistory(req.body.messages);
-    const prompt = buildIntakePrompt(messages);
-    const { data, modelUsed } = await generateStructuredPlan(prompt);
+router.get(
+  '/:id',
+  validateEventId,
+  loadOwnedEvent({ lean: true }),
+  (req, res) => res.json(req.event)
+);
 
-    if (data?.done) {
-      const brief = sanitizeIntakeBrief(data.brief);
-      if (!brief) {
-        return res.json({ done: false, reply: "Sorry, I didn't catch that — could you tell me a bit more?", modelUsed });
-      }
-      return res.json({ done: true, reply: String(data.reply || 'Got it!').slice(0, MAX_MESSAGE_LENGTH), brief, modelUsed });
-    }
-
-    res.json({ done: false, reply: String(data?.reply || "Could you tell me more about the event?").slice(0, MAX_MESSAGE_LENGTH), modelUsed });
-  } catch (err) {
-    next(err);
-  }
-});
-
-async function findOwnedEvent(req, res) {
-  const event = await Event.findOne({ _id: req.params.id, ownerId: req.userId });
-  if (!event) {
-    res.status(404).json({ error: 'Event not found' });
-    return null;
-  }
-  return event;
-}
-
-router.get('/:id', async (req, res, next) => {
-  try {
-    const event = await findOwnedEvent(req, res);
-    if (!event) return;
-    res.json(event);
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.patch('/:id', async (req, res, next) => {
-  try {
-    const event = await findOwnedEvent(req, res);
-    if (!event) return;
-
-    const allowed = ['title', 'occasionType', 'date', 'location', 'guestCount', 'budgetTotal', 'vibe', 'plan'];
-    for (const key of allowed) {
-      if (req.body[key] === undefined) continue;
-      if (key === 'plan') {
-        // Merge rather than replace so a caller patching one plan field
-        // (e.g. just the checklist) can never wipe out the rest of the plan.
-        event.plan = { ...event.plan.toObject(), ...req.body.plan };
-      } else {
-        event[key] = req.body[key];
-      }
+router.patch(
+  '/:id',
+  validateEventId,
+  [...eventFieldRules({ titleRequired: false }), body('plan').optional().isObject().withMessage('plan must be an object')],
+  validate,
+  loadOwnedEvent(),
+  asyncHandler(async (req, res) => {
+    const { event } = req;
+    Object.assign(event, pickEditableFields(req.body));
+    if (req.body.plan) {
+      // Merge rather than replace, so a caller patching one plan field (e.g.
+      // just the checklist) can never wipe out the rest of the plan.
+      event.plan = { ...event.plan.toObject(), ...sanitizePlanPatch(req.body.plan) };
     }
     await event.save();
     res.json(event);
-  } catch (err) {
-    next(err);
-  }
-});
+  })
+);
 
-router.delete('/:id', async (req, res, next) => {
-  try {
-    const event = await findOwnedEvent(req, res);
-    if (!event) return;
-    await Guest.deleteMany({ eventId: event._id });
-    await event.deleteOne();
+router.delete(
+  '/:id',
+  validateEventId,
+  loadOwnedEvent({ select: '_id', lean: true }),
+  asyncHandler(async (req, res) => {
+    const eventId = req.event._id;
+    await Promise.all([Event.deleteOne({ _id: eventId }), Guest.deleteMany({ eventId })]);
     res.json({ ok: true });
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.post('/:id/generate-plan', aiLimiter, async (req, res, next) => {
-  try {
-    const event = await findOwnedEvent(req, res);
-    if (!event) return;
-
-    const prompt = buildPlanPrompt(event);
-    const { data, modelUsed } = await generateStructuredPlan(prompt);
-    event.plan = sanitizePlan(data);
-    await event.save();
-
-    res.json({ event, modelUsed });
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.post(
-  '/:id/replan',
-  aiLimiter,
-  [body('changeDescription').trim().notEmpty().withMessage('changeDescription is required')],
-  validate,
-  async (req, res, next) => {
-    try {
-      const event = await findOwnedEvent(req, res);
-      if (!event) return;
-
-      const prompt = buildReplanPrompt(event, req.body.changeDescription);
-      const { data, modelUsed } = await generateStructuredPlan(prompt);
-      event.plan = sanitizePlan(data);
-      await event.save();
-
-      res.json({ event, modelUsed });
-    } catch (err) {
-      next(err);
-    }
-  }
-);
-
-router.get('/:id/guests', async (req, res, next) => {
-  try {
-    const event = await findOwnedEvent(req, res);
-    if (!event) return;
-    const guests = await Guest.find({ eventId: event._id }).sort({ respondedAt: -1, createdAt: -1 }).lean();
-    res.json(guests);
-  } catch (err) {
-    next(err);
-  }
-});
-
-// Create a guest with a personal RSVP link but no email required — for sharing
-// by hand via WhatsApp, SMS, or any other channel instead of sending mail.
-router.post(
-  '/:id/guests/link',
-  [
-    body('name').trim().notEmpty().withMessage('Guest name is required'),
-    body('phone').optional().trim(),
-  ],
-  validate,
-  async (req, res, next) => {
-    try {
-      const event = await findOwnedEvent(req, res);
-      if (!event) return;
-
-      const guest = await Guest.create({
-        eventId: event._id,
-        name: req.body.name,
-        phone: req.body.phone || '',
-        inviteToken: crypto.randomBytes(12).toString('hex'),
-        status: 'not_sent',
-      });
-
-      res.status(201).json(guest);
-    } catch (err) {
-      next(err);
-    }
-  }
-);
-
-// Same as above but for a whole batch of guests at once, so adding a guest
-// list doesn't mean one request (and one round trip) per name.
-router.post(
-  '/:id/guests/bulk',
-  [body('guests').isArray({ min: 1, max: 200 }).withMessage('Provide at least one guest')],
-  validate,
-  async (req, res, next) => {
-    try {
-      const event = await findOwnedEvent(req, res);
-      if (!event) return;
-
-      const seen = new Set();
-      const entries = [];
-      for (const raw of req.body.guests) {
-        const name = String(raw?.name ?? raw ?? '').trim();
-        if (!name || seen.has(name)) continue;
-        seen.add(name);
-        entries.push({
-          eventId: event._id,
-          name,
-          phone: raw?.phone ? String(raw.phone).trim() : '',
-          inviteToken: crypto.randomBytes(12).toString('hex'),
-          status: 'not_sent',
-        });
-      }
-      if (entries.length === 0) {
-        return res.status(400).json({ error: 'Provide at least one guest' });
-      }
-
-      const guests = await Guest.insertMany(entries);
-      res.status(201).json(guests);
-    } catch (err) {
-      next(err);
-    }
-  }
-);
-
-// The host calls this right after actually sharing a guest's link (copy or
-// WhatsApp), so the guest moves from "not sent" to "awaiting response"
-// instead of looking invited the moment the record is created.
-router.post('/:id/guests/:guestId/mark-sent', async (req, res, next) => {
-  try {
-    const event = await findOwnedEvent(req, res);
-    if (!event) return;
-    const guest = await Guest.findOne({ _id: req.params.guestId, eventId: event._id });
-    if (!guest) return res.status(404).json({ error: 'Guest not found' });
-    if (guest.status === 'not_sent') {
-      guest.status = 'invited';
-      guest.sentAt = new Date();
-      await guest.save();
-    }
-    res.json(guest);
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.delete('/:id/guests/:guestId', async (req, res, next) => {
-  try {
-    const event = await findOwnedEvent(req, res);
-    if (!event) return;
-    const guest = await Guest.findOneAndDelete({ _id: req.params.guestId, eventId: event._id });
-    if (!guest) return res.status(404).json({ error: 'Guest not found' });
-    res.json({ ok: true });
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.post(
-  '/:id/chat',
-  aiLimiter,
-  [body('message').trim().notEmpty().isLength({ max: MAX_MESSAGE_LENGTH }).withMessage(`message is required (max ${MAX_MESSAGE_LENGTH} chars)`)],
-  validate,
-  async (req, res, next) => {
-    try {
-      const event = await findOwnedEvent(req, res);
-      if (!event) return;
-
-      const history = sanitizeHistory(event.assistantChat);
-      const prompt = buildAssistantChatPrompt(event, history, req.body.message);
-      const { data: reply, modelUsed } = await generateText(prompt);
-
-      event.assistantChat.push({ role: 'user', content: req.body.message });
-      event.assistantChat.push({ role: 'assistant', content: reply });
-      event.assistantChat = event.assistantChat.slice(-MAX_CHAT_HISTORY);
-      await event.save();
-
-      res.json({ reply, modelUsed });
-    } catch (err) {
-      next(err);
-    }
-  }
+  })
 );
 
 export default router;

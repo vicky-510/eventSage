@@ -6,8 +6,12 @@ import DonutChart from '../components/charts/DonutChart.jsx';
 import BarChart from '../components/charts/BarChart.jsx';
 import EventCalendar from '../components/EventCalendar.jsx';
 import Spinner from '../components/Spinner.jsx';
+import { usePageTitle } from '../hooks/usePageTitle.js';
+
+const UPCOMING_WINDOW_DAYS = 30;
 
 export default function Dashboard() {
+  usePageTitle('Your events');
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -20,11 +24,16 @@ export default function Dashboard() {
       .finally(() => setLoading(false));
   }, []);
 
-  const upcoming = events.filter((ev) => {
-    const d = daysUntil(ev.date);
-    return d !== null && d >= 0 && d <= 30;
-  }).length;
-  const totalBudget = events.reduce((sum, ev) => sum + (ev.budgetTotal || 0), 0);
+  const { upcoming, totalBudget } = useMemo(
+    () => ({
+      upcoming: events.filter((ev) => {
+        const d = daysUntil(ev.date);
+        return d !== null && d >= 0 && d <= UPCOMING_WINDOW_DAYS;
+      }).length,
+      totalBudget: events.reduce((sum, ev) => sum + (ev.budgetTotal || 0), 0),
+    }),
+    [events]
+  );
 
   const occasionData = useMemo(() => {
     const counts = {};

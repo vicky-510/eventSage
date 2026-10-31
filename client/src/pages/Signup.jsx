@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../auth/AuthContext.jsx';
+import { useAuth } from '../auth/useAuth.js';
+import { usePageTitle } from '../hooks/usePageTitle.js';
 
 export default function Signup() {
+  usePageTitle('Create your account');
   const { signup } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -33,6 +35,7 @@ export default function Signup() {
             <label htmlFor="email">Email</label>
             <input
               id="email"
+              maxLength={254}
               type="email"
               required
               autoComplete="email"
@@ -44,6 +47,7 @@ export default function Signup() {
             <label htmlFor="password">Password</label>
             <input
               id="password"
+              maxLength={128}
               type="password"
               required
               minLength={10}

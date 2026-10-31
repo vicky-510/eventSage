@@ -5,134 +5,133 @@ import User from '../models/User.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken, hashToken } from '../utils/tokens.js';
 import { validate } from '../middleware/validate.js';
 import { authLimiter } from '../middleware/rateLimiters.js';
-import { BCRYPT_ROUNDS, REFRESH_TOKEN_MAX_AGE_MS } from '../utils/constants.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
+import { HttpError } from '../utils/httpError.js';
+import {
+  BCRYPT_ROUNDS,
+  REFRESH_TOKEN_MAX_AGE_MS,
+  MIN_PASSWORD_LENGTH,
+  MAX_PASSWORD_LENGTH,
+} from '../utils/constants.js';
 
 const router = Router();
 
 const REFRESH_COOKIE_NAME = 'refreshToken';
 const isProd = process.env.NODE_ENV === 'production';
-const REFRESH_COOKIE_OPTIONS = {
+const REFRESH_COOKIE_BASE = {
   httpOnly: true,
   // Frontend (Netlify) and backend (Vercel) are different sites in production,
   // so the cookie must be SameSite=None (requires Secure) to survive a
-  // cross-site fetch. Locally, frontend and backend share no cookie domain
-  // either, but 'lax' is enough since dev traffic is same-site over HTTP.
+  // cross-site fetch. Locally 'lax' is enough since dev traffic is same-site.
   secure: isProd,
   sameSite: isProd ? 'none' : 'lax',
-  maxAge: REFRESH_TOKEN_MAX_AGE_MS,
   path: '/auth',
 };
+
+const emailRule = body('email').isEmail().withMessage('Valid email required').normalizeEmail();
+
+/**
+ * Issues a fresh access token + rotated refresh token for `userId`, storing
+ * only the refresh token's hash server-side so it can be revoked.
+ */
+async function issueSession(res, userId) {
+  const id = userId.toString();
+  const accessToken = signAccessToken(id);
+  const refreshToken = signRefreshToken(id);
+  await User.updateOne({ _id: id }, { refreshTokenHash: hashToken(refreshToken) });
+  res.cookie(REFRESH_COOKIE_NAME, refreshToken, { ...REFRESH_COOKIE_BASE, maxAge: REFRESH_TOKEN_MAX_AGE_MS });
+  return accessToken;
+}
 
 router.post(
   '/signup',
   authLimiter,
   [
-    body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
+    emailRule,
     body('password')
-      .isLength({ min: 10 })
-      .withMessage('Password must be at least 10 characters')
+      .isString()
+      .isLength({ min: MIN_PASSWORD_LENGTH, max: MAX_PASSWORD_LENGTH })
+      .withMessage(`Password must be ${MIN_PASSWORD_LENGTH}-${MAX_PASSWORD_LENGTH} characters`)
       .matches(/[0-9]/)
       .withMessage('Password must contain a number')
       .matches(/[A-Za-z]/)
       .withMessage('Password must contain a letter'),
   ],
   validate,
-  async (req, res, next) => {
-    try {
-      const { email, password } = req.body;
-      const existing = await User.findOne({ email });
-      if (existing) {
-        return res.status(409).json({ error: 'An account with this email already exists' });
-      }
-      const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
-      const user = await User.create({ email, passwordHash });
-
-      const accessToken = signAccessToken(user._id.toString());
-      const refreshToken = signRefreshToken(user._id.toString());
-      user.refreshTokenHash = hashToken(refreshToken);
-      await user.save();
-
-      res.cookie(REFRESH_COOKIE_NAME, refreshToken, REFRESH_COOKIE_OPTIONS);
-      res.status(201).json({ accessToken, user: { id: user._id, email: user.email } });
-    } catch (err) {
-      next(err);
+  asyncHandler(async (req, res) => {
+    const { email, password } = req.body;
+    if (await User.exists({ email })) {
+      throw new HttpError(409, 'An account with this email already exists');
     }
-  }
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+    const user = await User.create({ email, passwordHash });
+
+    const accessToken = await issueSession(res, user._id);
+    res.status(201).json({ accessToken, user: { id: user._id, email: user.email } });
+  })
 );
 
 router.post(
   '/login',
   authLimiter,
-  [body('email').isEmail().normalizeEmail(), body('password').notEmpty()],
+  [emailRule, body('password').isString().isLength({ min: 1, max: MAX_PASSWORD_LENGTH })],
   validate,
-  async (req, res, next) => {
-    try {
-      const { email, password } = req.body;
-      const user = await User.findOne({ email });
-      const genericError = () => res.status(401).json({ error: 'Invalid email or password' });
-
-      if (!user) return genericError();
-      const ok = await bcrypt.compare(password, user.passwordHash);
-      if (!ok) return genericError();
-
-      const accessToken = signAccessToken(user._id.toString());
-      const refreshToken = signRefreshToken(user._id.toString());
-      user.refreshTokenHash = hashToken(refreshToken);
-      await user.save();
-
-      res.cookie(REFRESH_COOKIE_NAME, refreshToken, REFRESH_COOKIE_OPTIONS);
-      res.json({ accessToken, user: { id: user._id, email: user.email } });
-    } catch (err) {
-      next(err);
+  asyncHandler(async (req, res) => {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email }).select('+passwordHash');
+    // Same message for unknown email and wrong password, so the response
+    // doesn't reveal which emails are registered.
+    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+      throw new HttpError(401, 'Invalid email or password');
     }
-  }
+
+    const accessToken = await issueSession(res, user._id);
+    res.json({ accessToken, user: { id: user._id, email: user.email } });
+  })
 );
 
-router.post('/refresh', async (req, res, next) => {
-  try {
+router.post(
+  '/refresh',
+  asyncHandler(async (req, res) => {
     const token = req.cookies?.[REFRESH_COOKIE_NAME];
-    if (!token) return res.status(401).json({ error: 'No refresh token' });
+    if (!token) throw new HttpError(401, 'No refresh token');
 
     let payload;
     try {
       payload = verifyRefreshToken(token);
     } catch {
-      return res.status(401).json({ error: 'Invalid or expired refresh token' });
+      throw new HttpError(401, 'Invalid or expired refresh token');
     }
 
-    const user = await User.findById(payload.sub);
-    if (!user || user.refreshTokenHash !== hashToken(token)) {
-      return res.status(401).json({ error: 'Refresh token revoked' });
-    }
+    // Atomic compare-and-swap: only the current refresh token can be exchanged,
+    // and only once — a replayed or concurrently reused token gets nothing.
+    const accessToken = signAccessToken(payload.sub);
+    const newRefreshToken = signRefreshToken(payload.sub);
+    const rotated = await User.findOneAndUpdate(
+      { _id: payload.sub, refreshTokenHash: hashToken(token) },
+      { refreshTokenHash: hashToken(newRefreshToken) }
+    );
+    if (!rotated) throw new HttpError(401, 'Refresh token revoked');
 
-    const accessToken = signAccessToken(user._id.toString());
-    const newRefreshToken = signRefreshToken(user._id.toString());
-    user.refreshTokenHash = hashToken(newRefreshToken);
-    await user.save();
-
-    res.cookie(REFRESH_COOKIE_NAME, newRefreshToken, REFRESH_COOKIE_OPTIONS);
+    res.cookie(REFRESH_COOKIE_NAME, newRefreshToken, { ...REFRESH_COOKIE_BASE, maxAge: REFRESH_TOKEN_MAX_AGE_MS });
     res.json({ accessToken });
-  } catch (err) {
-    next(err);
-  }
-});
+  })
+);
 
-router.post('/logout', async (req, res, next) => {
-  try {
+router.post(
+  '/logout',
+  asyncHandler(async (req, res) => {
     const token = req.cookies?.[REFRESH_COOKIE_NAME];
-    if (token) {
-      try {
-        const payload = verifyRefreshToken(token);
-        await User.findByIdAndUpdate(payload.sub, { refreshTokenHash: null });
-      } catch {
-        // token already invalid, nothing to revoke
-      }
+    let payload = null;
+    try {
+      payload = token ? verifyRefreshToken(token) : null;
+    } catch {
+      // Already invalid or expired: there's no live session left to revoke.
     }
-    res.clearCookie(REFRESH_COOKIE_NAME, { path: '/auth', secure: isProd, sameSite: isProd ? 'none' : 'lax' });
+    if (payload) await User.updateOne({ _id: payload.sub }, { refreshTokenHash: null });
+    res.clearCookie(REFRESH_COOKIE_NAME, REFRESH_COOKIE_BASE);
     res.json({ ok: true });
-  } catch (err) {
-    next(err);
-  }
-});
+  })
+);
 
 export default router;

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useAuth } from '../auth/AuthContext.jsx';
+import { useAuth } from '../auth/useAuth.js';
 import {
   SparkleIcon,
   EditIcon,
@@ -12,6 +12,7 @@ import {
 import Reveal from '../components/Reveal.jsx';
 import DonutChart from '../components/charts/DonutChart.jsx';
 import BarChart from '../components/charts/BarChart.jsx';
+import { usePageTitle } from '../hooks/usePageTitle.js';
 
 const DEMO_OCCASIONS = [
   { label: 'Wedding', value: 3 },
@@ -103,6 +104,7 @@ const STATS = [
 ];
 
 export default function Landing() {
+  usePageTitle();
   const { user } = useAuth();
 
   return (

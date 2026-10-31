@@ -1,14 +1,12 @@
 import 'dotenv/config';
 import { createApp } from '../src/app.js';
 import { connectDB } from '../src/db.js';
+import { assertRequiredEnv } from '../src/utils/env.js';
 
-let connected = false;
+assertRequiredEnv();
 const app = createApp();
 
 export default async function handler(req, res) {
-  if (!connected) {
-    await connectDB(process.env.MONGO_URI);
-    connected = true;
-  }
+  await connectDB(process.env.MONGO_URI);
   return app(req, res);
 }

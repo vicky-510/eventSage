@@ -1,5 +1,10 @@
 import { validationResult } from 'express-validator';
 
+/**
+ * Runs after express-validator chains; responds 400 with the first failure
+ * message so the client gets one clear, actionable error.
+ * @type {import('express').RequestHandler}
+ */
 export function validate(req, res, next) {
   const result = validationResult(req);
   if (!result.isEmpty()) {

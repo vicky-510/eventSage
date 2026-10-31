@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { BotIcon, SendIcon, SparkleIcon } from '../components/icons.jsx';
+import { usePageTitle } from '../hooks/usePageTitle.js';
 
 const GREETING = "Hi! Tell me what you're celebrating — a wedding, birthday, or community event — and I'll help you plan it.";
 
 export default function NewEvent() {
+  usePageTitle('Plan a new event');
   const navigate = useNavigate();
   const [mode, setMode] = useState('chat');
   const [messages, setMessages] = useState([{ role: 'assistant', content: GREETING }]);
@@ -69,7 +71,7 @@ export default function NewEvent() {
           <form onSubmit={handleCreate}>
             <div className="field">
               <label htmlFor="r-title">Event title</label>
-              <input id="r-title" required value={brief.title} onChange={(e) => updateBrief('title', e.target.value)} />
+              <input id="r-title" required maxLength={200} value={brief.title} onChange={(e) => updateBrief('title', e.target.value)} />
             </div>
             <div className="field">
               <label htmlFor="r-occasionType">Occasion</label>
@@ -91,7 +93,7 @@ export default function NewEvent() {
             </div>
             <div className="field">
               <label htmlFor="r-location">Location</label>
-              <input id="r-location" value={brief.location || ''} onChange={(e) => updateBrief('location', e.target.value)} />
+              <input id="r-location" maxLength={200} value={brief.location || ''} onChange={(e) => updateBrief('location', e.target.value)} />
             </div>
             <div className="field">
               <label htmlFor="r-guestCount">Guest count</label>
@@ -115,7 +117,7 @@ export default function NewEvent() {
             </div>
             <div className="field">
               <label htmlFor="r-vibe">Vibe / notes</label>
-              <textarea id="r-vibe" rows={3} value={brief.vibe || ''} onChange={(e) => updateBrief('vibe', e.target.value)} />
+              <textarea id="r-vibe" maxLength={1000} rows={3} value={brief.vibe || ''} onChange={(e) => updateBrief('vibe', e.target.value)} />
             </div>
             {error && (
               <p className="error-text" role="alert">
@@ -185,6 +187,7 @@ export default function NewEvent() {
           </label>
           <input
             id="intake-input"
+            maxLength={2000}
             placeholder="Type your answer…"
             value={input}
             onChange={(e) => setInput(e.target.value)}

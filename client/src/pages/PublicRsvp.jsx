@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import { api } from '../api/client.js';
 import Spinner from '../components/Spinner.jsx';
+import { usePageTitle } from '../hooks/usePageTitle.js';
 
 function celebrate() {
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -20,6 +21,7 @@ export default function PublicRsvp() {
   const [searchParams] = useSearchParams();
   const inviteToken = searchParams.get('g') || '';
   const [event, setEvent] = useState(null);
+  usePageTitle(event ? `You're invited: ${event.title}` : 'RSVP');
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [name, setName] = useState('');
@@ -57,7 +59,13 @@ export default function PublicRsvp() {
     }
   }
 
-  if (error && !event) return <div className="container error-text">{error}</div>;
+  if (error && !event) {
+    return (
+      <div className="container error-text" role="alert">
+        {error}
+      </div>
+    );
+  }
   if (!event) return <div className="container"><Spinner label="Loading invitation…" /></div>;
 
   return (
@@ -70,12 +78,12 @@ export default function PublicRsvp() {
         {event.vibe && <p>{event.vibe}</p>}
 
         {submitted ? (
-          <p>Thanks for your RSVP!</p>
+          <p role="status">Thanks for your RSVP!</p>
         ) : (
           <form onSubmit={handleSubmit}>
             <div className="field">
               <label htmlFor="name">Your name</label>
-              <input id="name" required value={name} onChange={(e) => setName(e.target.value)} />
+              <input id="name" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             <div className="field">
               <label htmlFor="attending">Will you attend?</label>
@@ -86,7 +94,7 @@ export default function PublicRsvp() {
             </div>
             <div className="field">
               <label htmlFor="dietaryNotes">Dietary notes (optional)</label>
-              <input id="dietaryNotes" value={dietaryNotes} onChange={(e) => setDietaryNotes(e.target.value)} />
+              <input id="dietaryNotes" maxLength={1000} value={dietaryNotes} onChange={(e) => setDietaryNotes(e.target.value)} />
             </div>
             {error && (
               <p className="error-text" role="alert">

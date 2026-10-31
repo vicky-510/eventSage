@@ -1262,3 +1262,25 @@ thead .guest-table-check {
     transform: rotate(360deg);
   }
 }
+
+/* <main> receives programmatic focus on route change; no ring needed for that. */
+main:focus {
+  outline: none;
+}
+
+/* Catch-all: honour reduced-motion for every animation and transition, while
+   keeping the spinner turning slowly so loading is still visible. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .spinner {
+    animation-duration: 1.5s !important;
+    animation-iteration-count: infinite !important;
+  }
+}

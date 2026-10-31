@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { usePageTitle } from '../hooks/usePageTitle.js';
+import { GUEST_POLL_INTERVAL_MS } from '../hooks/useGuests.js';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { exportPlanPdf } from '../utils/exportPlanPdf.js';
@@ -11,6 +13,7 @@ export default function EventDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [event, setEvent] = useState(null);
+  usePageTitle(event?.title || 'Event');
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [replanText, setReplanText] = useState('');
@@ -29,29 +32,34 @@ export default function EventDetail() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  function loadGuests(opts = {}) {
+  // Held in a ref, not read from `guests` state, because the polling interval's
+  // closure would otherwise only ever see the first (empty) guest list.
+  const respondedIdsRef = useRef(null);
+
+  const loadGuests = useCallback(() => {
     const hasResponded = (g) => g.status === 'accepted' || g.status === 'declined';
     return api
       .getGuests(id)
       .then((list) => {
-        if (opts.detectNew) {
-          const prevResponded = new Set(guests.filter(hasResponded).map((g) => g._id));
-          const newlyResponded = list.find((g) => hasResponded(g) && !prevResponded.has(g._id));
+        const prev = respondedIdsRef.current;
+        if (prev) {
+          const newlyResponded = list.find((g) => hasResponded(g) && !prev.has(g._id));
           if (newlyResponded) setJustResponded(newlyResponded);
         }
+        respondedIdsRef.current = new Set(list.filter(hasResponded).map((g) => g._id));
         setGuests(list);
       })
       .catch((err) => setError(err.message));
-  }
+  }, [id]);
 
   useEffect(() => {
+    respondedIdsRef.current = null;
     loadGuests();
     const interval = setInterval(() => {
-      if (!document.hidden) loadGuests({ detectNew: true });
-    }, 15000);
+      if (!document.hidden) loadGuests();
+    }, GUEST_POLL_INTERVAL_MS);
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [loadGuests]);
 
   async function handleGenerate() {
     setGenerating(true);
@@ -166,7 +174,7 @@ export default function EventDetail() {
 
       {justResponded && (
         <div className="card rsvp-banner" role="status">
-          <span className="rsvp-banner-icon">🎉</span>
+          <span className="rsvp-banner-icon" aria-hidden="true">🎉</span>
           <div>
             <strong>{justResponded.name}</strong> just{' '}
             {justResponded.status === 'accepted' ? "RSVP'd yes!" : "responded — can't make it."}
@@ -270,6 +278,7 @@ export default function EventDetail() {
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <input
                 id="replan"
+                maxLength={2000}
                 placeholder="e.g. I lost ₹10,000 on a venue deposit"
                 value={replanText}
                 onChange={(e) => setReplanText(e.target.value)}

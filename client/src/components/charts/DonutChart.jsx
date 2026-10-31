@@ -4,7 +4,12 @@ export default function DonutChart({ data, size = 160, thickness = 22, centerLab
   const total = data.reduce((sum, d) => sum + d.value, 0) || 1;
   const radius = (size - thickness) / 2;
   const circumference = 2 * Math.PI * radius;
-  let offset = 0;
+  const segments = data.reduce((acc, d) => {
+    const dash = (d.value / total) * circumference;
+    const offset = acc.length ? acc[acc.length - 1].offset + acc[acc.length - 1].dash : 0;
+    acc.push({ dash, offset });
+    return acc;
+  }, []);
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '1.4rem', flexWrap: 'wrap' }}>
@@ -12,9 +17,8 @@ export default function DonutChart({ data, size = 160, thickness = 22, centerLab
         <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--color-surface-alt)" strokeWidth={thickness} />
         <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
           {data.map((d, i) => {
-            const fraction = d.value / total;
-            const dash = fraction * circumference;
-            const circle = (
+            const { dash, offset } = segments[i];
+            return (
               <circle
                 key={d.label}
                 cx={size / 2}
@@ -29,8 +33,6 @@ export default function DonutChart({ data, size = 160, thickness = 22, centerLab
                 style={{ transition: 'stroke-dasharray 0.6s ease' }}
               />
             );
-            offset += dash;
-            return circle;
           })}
         </g>
         {(centerLabel || centerValue) && (

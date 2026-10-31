@@ -24,7 +24,7 @@ export default function EventCalendar({ events }) {
   const month = cursor.getMonth();
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const today = new Date();
+  const [today] = useState(() => new Date());
 
   const cells = [];
   for (let i = 0; i < firstDay; i++) cells.push(null);

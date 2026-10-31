@@ -1,5 +1,4 @@
 import request from 'supertest';
-import { jest } from '@jest/globals';
 import { createApp } from '../src/app.js';
 import { setupTestDb, teardownTestDb, clearTestDb } from './setup.js';
 
