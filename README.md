@@ -20,6 +20,8 @@ EventSage turns a short event brief (occasion, date, location, guest count, budg
 ## How the Solution Works
 
 ### Architecture
+![EventSage System Architecture](docs/assets/architecture-diagram.png)
+
 - **Frontend**: React + Vite, deployed to Netlify. No heavy UI framework — a small hand-written CSS theme (sandal/brown palette) keeps the client bundle and repo size small.
 - **Backend**: Node.js + Express, deployed to Vercel as a serverless function (`server/api/index.js`).
 - **Database**: MongoDB Atlas via Mongoose (`User`, `Event`, `Guest` collections).
